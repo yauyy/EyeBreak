@@ -84,7 +84,7 @@ private struct MenuBarLabel: View {
             .accessibilityLabel(accessibility)
     }
 
-    /// 彩色番茄仔，表情随状态变化（Assets 中的 MenuBar*，由 Design/style 导出）
+    /// 单色番茄仔剪影，表情随状态变化（Assets 中的 MenuBar*，由 Design/style 导出）
     private var assetName: String {
         switch model.phase {
         case .working: return "MenuBarWorking"
@@ -94,10 +94,10 @@ private struct MenuBarLabel: View {
         }
     }
 
-    /// 菜单栏默认把图片当模板渲染成单色，这里显式关闭模板模式以保留颜色
+    /// 模板图：系统按菜单栏的深浅自动着色，与其他菜单栏图标保持一致
     private static func icon(named name: String) -> NSImage {
         let image = NSImage(named: name) ?? NSImage()
-        image.isTemplate = false
+        image.isTemplate = true
         image.size = NSSize(width: 18, height: 18)
         return image
     }
