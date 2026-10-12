@@ -8,6 +8,8 @@
 #   SPARKLE_PUBLIC_KEY=...    覆盖内置公钥（仅用于本机测试）
 #   SPARKLE_FEED_URL=...      覆盖更新源地址（仅用于本机测试）
 #   DOWNLOAD_URL_PREFIX=...   覆盖 appcast 里的下载地址前缀（仅用于本机测试）
+#   DERIVED_DATA=path         构建目录（默认 ~/Library/Developer/Xcode/DerivedData/EyeBreak-build）。
+#                             不要放在「文稿」「桌面」等受保护的文件夹里，否则每次运行编出来的 App 都会弹访问权限提示
 #
 # 更新说明：如果存在 docs/release-notes/<版本号>.md，会嵌入 appcast，显示在 Sparkle 的更新窗口里。
 set -euo pipefail
@@ -32,14 +34,15 @@ if [[ -z "$PUBLIC_KEY" ]]; then
   exit 1
 fi
 
-APP=build/Build/Products/Release/EyeBreak.app
+DERIVED_DATA="${DERIVED_DATA:-$HOME/Library/Developer/Xcode/DerivedData/EyeBreak-build}"
+APP=$DERIVED_DATA/Build/Products/Release/EyeBreak.app
 DMG=dist/EyeBreak-$VERSION.dmg
-STAGING=build/dmg-staging
-APPCAST_STAGING=build/appcast-staging
-SPARKLE_BIN=build/SourcePackages/artifacts/sparkle/Sparkle/bin
+STAGING=$DERIVED_DATA/dmg-staging
+APPCAST_STAGING=$DERIVED_DATA/appcast-staging
+SPARKLE_BIN=$DERIVED_DATA/SourcePackages/artifacts/sparkle/Sparkle/bin
 
 echo "==> Building EyeBreak $VERSION ($BUILD) (Release)"
-xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -configuration Release -derivedDataPath build \
+xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -configuration Release -derivedDataPath "$DERIVED_DATA" \
   -destination 'generic/platform=macOS' \
   MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
   SPARKLE_PUBLIC_KEY="$PUBLIC_KEY" SPARKLE_FEED_URL="$FEED_URL" \

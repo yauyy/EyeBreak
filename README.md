@@ -83,28 +83,30 @@ export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 构建 Release 版：
 
 ```bash
-xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -configuration Release -derivedDataPath build build
+xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -configuration Release -derivedDataPath ~/Library/Developer/Xcode/DerivedData/EyeBreak-build build
 ```
 
 运行：
 
 ```bash
-open build/Build/Products/Release/EyeBreak.app
+open ~/Library/Developer/Xcode/DerivedData/EyeBreak-build/Build/Products/Release/EyeBreak.app
 ```
 
 运行单元测试：
 
 ```bash
-xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -derivedDataPath build test
+xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -derivedDataPath ~/Library/Developer/Xcode/DerivedData/EyeBreak-build test
 ```
+
+构建目录放在 `~/Library/Developer/Xcode/DerivedData/` 下，而不是项目里：项目在「文稿」文件夹中，从这里运行的 App 会反复弹出访问「文稿」的权限提示。
 
 以 10 秒测试间隔启动 Debug 版，并自动开始计时：
 
 ```bash
-open build/Build/Products/Debug/EyeBreak.app --args -EyeBreakTestInterval 10 -EyeBreakAutoStart YES
+open ~/Library/Developer/Xcode/DerivedData/EyeBreak-build/Build/Products/Debug/EyeBreak.app --args -EyeBreakTestInterval 10 -EyeBreakAutoStart YES
 ```
 
-想长期使用，可以把 `build/Build/Products/Release/EyeBreak.app` 拖进「应用程序」文件夹。
+想长期使用，可以把 `~/Library/Developer/Xcode/DerivedData/EyeBreak-build/Build/Products/Release/EyeBreak.app` 拖进「应用程序」文件夹。
 
 打包发布用的 DMG（产物在 `dist/`）：
 
