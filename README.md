@@ -217,3 +217,11 @@ log stream --predicate 'subsystem == "EyeBreak"' --level info
 - **到点没看到提醒面板**：面板出现在鼠标所在屏幕的右上角。如果正在开会（麦克风被占用），提醒会等会议结束再出现。
 - **开机自启没生效**：如果菜单里提示「需要在系统设置里允许」，点「去设置」，在「通用 → 登录项」里打开 EyeBreak。建议先把 App 放进「应用程序」文件夹再开启。
 - **想换 Bundle ID**：在 Xcode 的 Target → Signing & Capabilities 中修改（当前为 `com.yau.EyeBreak`）。修改后系统会视为新应用，之前保存的时长设置不会带过去。
+
+## 许可证
+
+EyeBreak 以 [MIT 协议](LICENSE) 开源。
+
+随 App 一起分发的第三方组件（目前是 [Sparkle](https://sparkle-project.org)）的版权与许可声明见 [EyeBreak/ThirdPartyNotices.txt](EyeBreak/ThirdPartyNotices.txt)，App 菜单底部的「许可」也能打开它。
+
+遇到问题或有建议，欢迎在菜单底部点「反馈」，或直接到 [GitHub Issues](https://github.com/yauyy/EyeBreak/issues) 提交。

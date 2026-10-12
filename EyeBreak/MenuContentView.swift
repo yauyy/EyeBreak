@@ -285,6 +285,14 @@ private struct VersionFooter: View {
                 .font(Theme.font(12))
                 .foregroundStyle(Theme.inkSoft)
             Spacer()
+            Button("反馈") { NSWorkspace.shared.open(AppLinks.newIssue()) }
+                .buttonStyle(PillButtonStyle(kind: .plain))
+                .help("在 GitHub 上反馈问题")
+            if let notices = AppLinks.thirdPartyNotices {
+                Button("许可") { NSWorkspace.shared.open(notices) }
+                    .buttonStyle(PillButtonStyle(kind: .plain))
+                    .help("查看开源许可")
+            }
             if updates.isConfigured {
                 Button("检查更新", action: updates.checkForUpdates)
                     .buttonStyle(PillButtonStyle(kind: .plain))
