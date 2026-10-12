@@ -28,12 +28,14 @@ final class EyeBreakModel: ObservableObject {
         case resting
         /// 长时间没有键鼠操作，判定用户离开电脑；计时冻结，回来后开始新一轮
         case away
+        /// 不在工作时段内：计时冻结、不提醒，进入工作时段后自动开始新一轮
+        case offHours
     }
 
     /// 用于退出后恢复的计时快照
     struct Snapshot: Codable, Equatable {
         enum SavedPhase: String, Codable {
-            case idle, working, paused, awaitingBreak, resting, away
+            case idle, working, paused, awaitingBreak, resting, away, offHours
         }
         var phase: SavedPhase
         /// 专注中：保存时刻的剩余时间；暂停中：暂停时的剩余时间
@@ -70,6 +72,8 @@ final class EyeBreakModel: ObservableObject {
     private let idleTime: () -> TimeInterval
     /// 是否正在开会（麦克风被任意 App 使用）
     private let isInMeeting: () -> Bool
+    /// 当前是否在工作时段内（未启用工作时段时恒为 true）
+    private let isWorkTime: () -> Bool
     /// 无操作超过这个时长判定为离开；睡眠超过这个时长也视为已经休息过
     private let awayThreshold: TimeInterval
     private let snoozeInterval: TimeInterval
@@ -89,6 +93,10 @@ final class EyeBreakModel: ObservableObject {
     private var resumeAfterWake = false
     /// 睡眠前处于等待休息/休息中：睡眠期间眼睛已离开屏幕，唤醒后直接开始新一轮专注。
     private var newRoundAfterWake = false
+    /// 工作时段外用户手动开始了计时：本次时段外不再自动冻结，直到下次进入工作时段
+    private var overridesSchedule = false
+    /// 上一次检查时是否在工作时段内，用于发现「刚进入工作时段」
+    private var wasWorkTime: Bool?
     private var sleepStartedAt: Date?
     /// 退出过程中不再保存快照，避免把退出时的清理状态当成用户状态
     private var isPersistenceEnabled = true
@@ -103,6 +111,7 @@ final class EyeBreakModel: ObservableObject {
         now: @escaping () -> Date = Date.init,
         idleTime: @escaping () -> TimeInterval = SystemIdle.seconds,
         isInMeeting: @escaping () -> Bool = MeetingDetector.isInMeeting,
+        isWorkTime: @escaping () -> Bool = { true },
         awayThreshold: TimeInterval = EyeBreakConfig.awayThreshold,
         snoozeInterval: TimeInterval = EyeBreakConfig.snoozeInterval,
         exerciseIndex: Int = -1,
@@ -115,6 +124,7 @@ final class EyeBreakModel: ObservableObject {
         self.now = now
         self.idleTime = idleTime
         self.isInMeeting = isInMeeting
+        self.isWorkTime = isWorkTime
         self.awayThreshold = awayThreshold
         self.snoozeInterval = snoozeInterval
         roundTotal = workInterval
@@ -137,7 +147,7 @@ final class EyeBreakModel: ObservableObject {
         switch phase {
         case .working, .paused, .resting: return compact
         case .awaitingBreak: return "休息"
-        case .idle, .away: return nil
+        case .idle, .away, .offHours: return nil
         }
     }
 
@@ -147,7 +157,7 @@ final class EyeBreakModel: ObservableObject {
         switch phase {
         case .awaitingBreak, .resting: total = restDuration
         case .working, .paused: total = roundTotal
-        case .idle, .away: total = workInterval
+        case .idle, .away, .offHours: total = workInterval
         }
         guard total > 0 else { return 0 }
         return min(1, max(0, 1 - Double(remainingSeconds) / total))
@@ -159,6 +169,10 @@ final class EyeBreakModel: ObservableObject {
     func start() {
         switch phase {
         case .idle, .away: beginWorking(remaining: workInterval)
+        case .offHours:
+            // 工作时段外用户主动开始：本次照常计时，直到下次进入工作时段
+            overridesSchedule = true
+            beginWorking(remaining: workInterval)
         case .paused: resumeWorking()
         case .working, .awaitingBreak, .resting: return
         }
@@ -179,6 +193,8 @@ final class EyeBreakModel: ObservableObject {
 
     /// 重新计时：无论当前处于哪个阶段，都立即开始新一轮完整专注。
     func reset() {
+        // 工作时段外手动重来，同样视为主动开始
+        if phase == .offHours || !isWorkTime() { overridesSchedule = true }
         reminder.cancelPendingReminders()
         beginWorking(remaining: workInterval)
     }
@@ -251,6 +267,7 @@ final class EyeBreakModel: ObservableObject {
         case .awaitingBreak: saved = .awaitingBreak
         case .resting: saved = .resting
         case .away: saved = .away
+        case .offHours: saved = .offHours
         }
         return Snapshot(phase: saved, remaining: remaining, savedAt: now())
     }
@@ -281,6 +298,12 @@ final class EyeBreakModel: ObservableObject {
             }
         case .away:
             beginWorking(remaining: workInterval)
+        case .offHours:
+            if isWorkTime() {
+                beginWorking(remaining: workInterval)
+            } else {
+                enterOffHours()
+            }
         }
         logger.notice("Restored \(snapshot.phase.rawValue, privacy: .public) after \(elapsed, format: .fixed(precision: 0))s")
     }
@@ -294,6 +317,8 @@ final class EyeBreakModel: ObservableObject {
     // MARK: - 计时
 
     func tick() {
+        if checkWorkSchedule() { return }
+
         switch phase {
         case .working, .awaitingBreak:
             // 休息中不检测：眺望时本来就不碰键鼠；开会时盯着屏幕但可能很久不碰键鼠，也不算离开
@@ -303,6 +328,8 @@ final class EyeBreakModel: ObservableObject {
             }
         case .away:
             if idleTime() < Self.returnThreshold { returnFromAway() }
+            return
+        case .offHours:
             return
         case .idle, .paused, .resting:
             break
@@ -342,9 +369,44 @@ final class EyeBreakModel: ObservableObject {
             reminder.playBreakComplete()
             breakCompleted.send()
             beginWorking(remaining: workInterval)
-        case .idle, .paused, .awaitingBreak, .away:
+        case .idle, .paused, .awaitingBreak, .away, .offHours:
             updateDisplay()
         }
+    }
+
+    /// 处理工作时段的进出；返回 true 表示本次 tick 已处理完毕
+    private func checkWorkSchedule() -> Bool {
+        let inWorkTime = isWorkTime()
+        let justStarted = wasWorkTime == false && inWorkTime
+        wasWorkTime = inWorkTime
+
+        if inWorkTime {
+            overridesSchedule = false
+            if phase == .offHours || (justStarted && phase == .away) {
+                logger.notice("Work hours started, starting a new round")
+                beginWorking(remaining: workInterval)
+                return true
+            }
+            return false
+        }
+
+        // 工作时段外：专注中、等待休息时冻结；暂停、未开始、休息中保持不变（休息结束后再冻结）
+        guard !overridesSchedule else { return false }
+        if phase == .working || phase == .awaitingBreak || phase == .away {
+            enterOffHours()
+            return true
+        }
+        return phase == .offHours
+    }
+
+    private func enterOffHours() {
+        logger.notice("Outside work hours, pausing")
+        deadline = nil
+        isDeferredForMeeting = false
+        reminder.cancelPendingReminders()
+        phase = .offHours
+        startTicker()
+        updateDisplay()
     }
 
     /// 回来的判定：最近几秒内有键鼠操作
@@ -390,7 +452,7 @@ final class EyeBreakModel: ObservableObject {
     private func updateDisplay() {
         let seconds: TimeInterval
         switch phase {
-        case .idle, .away: seconds = workInterval
+        case .idle, .away, .offHours: seconds = workInterval
         case .working, .resting: seconds = currentRemaining()
         case .paused: seconds = pausedRemaining
         case .awaitingBreak: seconds = restDuration
@@ -435,7 +497,7 @@ final class EyeBreakModel: ObservableObject {
             stopTicker()
             deadline = nil
             newRoundAfterWake = true
-        case .idle, .paused, .away:
+        case .idle, .paused, .away, .offHours:
             break
         }
     }

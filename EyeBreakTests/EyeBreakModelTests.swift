@@ -20,6 +20,8 @@ private final class FakeClock {
     var idle: TimeInterval = 0
     /// 模拟麦克风是否被会议软件占用
     var inMeeting = false
+    /// 模拟当前是否在工作时段内
+    var workTime = true
     func advance(_ seconds: TimeInterval) { now += seconds }
 }
 
@@ -33,7 +35,7 @@ struct EyeBreakModelTests {
         let clock = clock
         model = EyeBreakModel(
             workInterval: 20 * 60, restDuration: 20, reminder: spy,
-            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, awayThreshold: 5 * 60,
+            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, isWorkTime: { clock.workTime }, awayThreshold: 5 * 60,
             usesSystemTimer: false
         )
     }
@@ -577,6 +579,91 @@ struct EyeBreakModelTests {
         #expect(model.phase == .away)
     }
 
+    // MARK: - 工作时段
+
+    @Test("专注中离开工作时段：冻结计时、不提醒")
+    func leavesWorkHoursWhileWorking() {
+        model.start()
+        advance(60)
+        clock.workTime = false
+        advance(1)
+        #expect(model.phase == .offHours)
+        advance(3 * 3600)
+        #expect(model.phase == .offHours)
+        #expect(spy.delivered.isEmpty)
+        #expect(model.menuBarText == nil)
+    }
+
+    @Test("进入工作时段：自动开始新一轮")
+    func workHoursStartNewRound() {
+        model.start()
+        clock.workTime = false
+        advance(1)
+        clock.workTime = true
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+    }
+
+    @Test("等待休息时离开工作时段：收起提醒")
+    func leavesWorkHoursWhileAwaitingBreak() {
+        finishWorkRound()
+        clock.workTime = false
+        advance(1)
+        #expect(model.phase == .offHours)
+        #expect(spy.cancelled >= 1)
+    }
+
+    @Test("工作时段外手动开始：照常计时直到下次进入工作时段")
+    func manualStartOutsideWorkHours() {
+        model.start()
+        clock.workTime = false
+        advance(1)
+        model.start()
+        #expect(model.phase == .working)
+        advance(60)
+        #expect(model.phase == .working)
+        advance(19 * 60)
+        #expect(model.phase == .awaitingBreak)
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("工作时段外手动开始后，下一个工作时段结束时照常冻结")
+    func overrideEndsWithNextWorkPeriod() {
+        model.start()
+        clock.workTime = false
+        advance(1)
+        model.start()
+        advance(60)
+        clock.workTime = true
+        advance(1)
+        clock.workTime = false
+        advance(1)
+        #expect(model.phase == .offHours)
+    }
+
+    @Test("暂停中离开工作时段：保持暂停")
+    func pausedStaysPausedOutsideWorkHours() {
+        model.start()
+        model.pause()
+        clock.workTime = false
+        advance(1)
+        #expect(model.phase == .paused)
+    }
+
+    @Test("休息中离开工作时段：先让本次休息结束，之后再冻结")
+    func restFinishesBeforeOffHours() {
+        finishWorkRound()
+        model.startBreak()
+        clock.workTime = false
+        advance(5)
+        #expect(model.phase == .resting)
+        advance(15)
+        advance(1)
+        #expect(model.phase == .offHours)
+        #expect(spy.breakCompleteSounds == 1)
+    }
+
     // MARK: - 状态保存与恢复
 
     /// 用同一个时钟新建一个模型，模拟重新打开 App
@@ -584,7 +671,7 @@ struct EyeBreakModelTests {
         let clock = clock
         return EyeBreakModel(
             workInterval: 20 * 60, restDuration: 20, reminder: spy,
-            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, awayThreshold: 5 * 60,
+            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, isWorkTime: { clock.workTime }, awayThreshold: 5 * 60,
             usesSystemTimer: false
         )
     }

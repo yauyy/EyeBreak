@@ -6,6 +6,7 @@ struct MenuContentView: View {
     @ObservedObject var stats: TomatoStats
     @ObservedObject var sounds: ReminderSounds
     @ObservedObject var updates: AppUpdater
+    @ObservedObject var schedule: WorkScheduleSettings
 
     var body: some View {
         VStack(spacing: 18) {
@@ -55,6 +56,11 @@ struct MenuContentView: View {
                 Text(status)
                     .font(Theme.font(13, .medium))
                     .foregroundStyle(statusColor)
+                if model.phase == .offHours {
+                    Text(schedule.schedule.rangeText + (schedule.schedule.weekdaysOnly ? " · 工作日" : ""))
+                        .font(Theme.font(11))
+                        .foregroundStyle(Theme.inkSoft)
+                }
                 if let test = EyeBreakConfig.testWorkInterval, model.workInterval == test {
                     Text("测试 \(Int(test)) 秒")
                         .font(Theme.font(11))
@@ -76,6 +82,7 @@ struct MenuContentView: View {
         case .awaitingBreak: return "该休息啦"
         case .resting: return "休息中"
         case .away: return "离开中"
+        case .offHours: return "工作时段外"
         }
     }
 
@@ -83,17 +90,20 @@ struct MenuContentView: View {
         switch model.phase {
         case .working, .awaitingBreak: return Theme.tomato
         case .resting: return Theme.leaf
-        case .idle, .paused, .away: return Theme.tomatoSoft
+        case .idle, .paused, .away, .offHours: return Theme.tomatoSoft
         }
     }
 
     private var statusColor: Color {
-        [.idle, .paused, .away].contains(model.phase) ? Theme.inkSoft : phaseColor
+        [.idle, .paused, .away, .offHours].contains(model.phase) ? Theme.inkSoft : phaseColor
     }
 
     private var controls: some View {
         HStack(spacing: 10) {
             switch model.phase {
+            case .offHours:
+                Button("仍要开始", action: model.start)
+                    .buttonStyle(PillButtonStyle(kind: .secondary))
             case .idle, .away:
                 Button("开始", action: model.start)
                     .buttonStyle(PillButtonStyle())
@@ -190,6 +200,14 @@ struct MenuContentView: View {
         }
         if updates.isConfigured {
             Toggle(isOn: $updates.automaticChecks) { settingTitle("自动检查更新") }
+                .toggleStyle(CuteToggleStyle())
+        }
+        Toggle(isOn: $schedule.schedule.isEnabled) { settingTitle("只在工作时段提醒") }
+            .toggleStyle(CuteToggleStyle())
+        if schedule.schedule.isEnabled {
+            CuteStepper(title: "开始", unit: "点", value: $schedule.schedule.startHour, range: WorkSchedule.hourRange, step: 1)
+            CuteStepper(title: "结束", unit: "点", value: $schedule.schedule.endHour, range: WorkSchedule.hourRange, step: 1)
+            Toggle(isOn: $schedule.schedule.weekdaysOnly) { settingTitle("仅工作日") }
                 .toggleStyle(CuteToggleStyle())
         }
     }

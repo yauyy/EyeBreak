@@ -8,7 +8,7 @@ struct EyeBreakApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin, stats: appDelegate.stats, sounds: appDelegate.sounds, updates: appDelegate.updates)
+            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin, stats: appDelegate.stats, sounds: appDelegate.sounds, updates: appDelegate.updates, schedule: appDelegate.schedule)
         } label: {
             MenuBarLabel(model: appDelegate.model)
         }
@@ -22,6 +22,7 @@ struct EyeBreakApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model: EyeBreakModel
     let sounds: ReminderSounds
+    let schedule: WorkScheduleSettings
     let launchAtLogin = LaunchAtLogin()
     let stats = TomatoStats()
     let updates = AppUpdater()
@@ -29,12 +30,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables: Set<AnyCancellable> = []
 
     override init() {
+        let schedule = WorkScheduleSettings()
         let sounds = ReminderSounds(choice: EyeBreakConfig.reminderSound)
         sounds.onChoiceChanged = { EyeBreakConfig.reminderSound = $0 }
         let model = EyeBreakModel(
             workInterval: EyeBreakConfig.workInterval,
             restDuration: EyeBreakConfig.restDuration,
             reminder: sounds,
+            isWorkTime: { [weak schedule] in schedule?.schedule.contains(Date()) ?? true },
             exerciseIndex: EyeBreakConfig.exerciseIndex
         )
         model.onPreferencesChanged = { work, rest in
@@ -42,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.model = model
         self.sounds = sounds
+        self.schedule = schedule
         super.init()
     }
 
@@ -91,7 +95,7 @@ private struct MenuBarLabel: View {
         case .working: return "MenuBarWorking"
         case .awaitingBreak: return "MenuBarAwaiting"
         case .resting: return "MenuBarResting"
-        case .idle, .paused, .away: return "MenuBarIdle"
+        case .idle, .paused, .away, .offHours: return "MenuBarIdle"
         }
     }
 
@@ -102,6 +106,7 @@ private struct MenuBarLabel: View {
         case .awaitingBreak: state = "等待休息"
         case .resting: state = "休息中"
         case .away: state = "离开中"
+        case .offHours: state = "工作时段外"
         case .idle, .paused: state = "未在计时"
         }
         if let text = model.menuBarText, model.phase != .awaitingBreak {
