@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MenuContentView: View {
     @ObservedObject var model: EyeBreakModel
-    @ObservedObject var notifications: NotificationService
 
     var body: some View {
         VStack(spacing: 18) {
@@ -10,13 +9,11 @@ struct MenuContentView: View {
             ring
             controls
             settings
-            NotificationNotice(notifications: notifications)
         }
         .padding(18)
         .frame(width: 280)
         .background(Theme.cream)
         .environment(\.colorScheme, .light)
-        .task { await notifications.refreshStatus() }
     }
 
     private var header: some View {
@@ -122,50 +119,5 @@ struct MenuContentView: View {
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
-    }
-}
-
-/// 只在通知不可用时出现的小提示条；一切正常时不占位置
-private struct NotificationNotice: View {
-    @ObservedObject var notifications: NotificationService
-
-    var body: some View {
-        if let notice {
-            HStack(spacing: 8) {
-                Text(notice.message)
-                    .font(Theme.font(12))
-                    .foregroundStyle(Theme.ink)
-                Spacer(minLength: 4)
-                Button(notice.action, action: notice.perform)
-                    .buttonStyle(PillButtonStyle(kind: .plain))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.tomato.opacity(0.1)))
-        }
-    }
-
-    private struct Notice {
-        let message: String
-        let action: String
-        let perform: () -> Void
-    }
-
-    private var notice: Notice? {
-        if notifications.lastDeliveryError != nil {
-            return Notice(message: "通知发送失败，只会响铃", action: "去设置", perform: notifications.openNotificationSettings)
-        }
-        switch notifications.authState {
-        case .notDetermined:
-            return Notice(message: "还没允许通知", action: "允许") {
-                Task { await notifications.requestAuthorization() }
-            }
-        case .denied:
-            return Notice(message: "通知已关闭，只会响铃", action: "去开启", perform: notifications.openNotificationSettings)
-        case .alertsOff:
-            return Notice(message: "通知样式为「无」，不会弹横幅", action: "去设置", perform: notifications.openNotificationSettings)
-        case .authorized, .unknown:
-            return nil
-        }
     }
 }
