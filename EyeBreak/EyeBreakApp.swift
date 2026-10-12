@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.onSnapshot = { EyeBreakConfig.saveSnapshot($0) }
         #if DEBUG
         Logger(subsystem: "EyeBreak", category: "debug")
-            .notice("Idle seconds at launch: \(SystemIdle.seconds(), format: .fixed(precision: 1)), away threshold: \(EyeBreakConfig.awayThreshold), login item enabled: \(self.launchAtLogin.isEnabled)")
+            .notice("Idle seconds at launch: \(SystemIdle.seconds(), format: .fixed(precision: 1)), away threshold: \(EyeBreakConfig.awayThreshold), login item enabled: \(self.launchAtLogin.isEnabled), audio devices: \(MeetingDetector.audioDevices().count), running audio devices: \(MeetingDetector.audioDevices().filter(MeetingDetector.isAudioDeviceRunning).count), mic in use: \(MeetingDetector.isMicrophoneInUse())")
         #endif
     }
 

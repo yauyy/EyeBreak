@@ -18,6 +18,8 @@ private final class FakeClock {
     var now = Date(timeIntervalSince1970: 1_000_000)
     /// 模拟距离上次键鼠操作的秒数，默认一直在操作
     var idle: TimeInterval = 0
+    /// 模拟麦克风是否被会议软件占用
+    var inMeeting = false
     func advance(_ seconds: TimeInterval) { now += seconds }
 }
 
@@ -31,7 +33,7 @@ struct EyeBreakModelTests {
         let clock = clock
         model = EyeBreakModel(
             workInterval: 20 * 60, restDuration: 20, reminder: spy,
-            now: { clock.now }, idleTime: { clock.idle }, awayThreshold: 5 * 60,
+            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, awayThreshold: 5 * 60,
             usesSystemTimer: false
         )
     }
@@ -468,6 +470,48 @@ struct EyeBreakModelTests {
         #expect(celebrations == 0)
     }
 
+    // MARK: - 会议
+
+    @Test("专注到点时正在开会：先不提醒，会议结束立即提醒")
+    func deferReminderDuringMeeting() {
+        model.start()
+        clock.inMeeting = true
+        advance(20 * 60)
+        #expect(model.phase == .working)
+        #expect(model.isDeferredForMeeting)
+        #expect(model.formattedRemaining == "00:00")
+        #expect(spy.delivered.isEmpty)
+
+        advance(600)
+        #expect(spy.delivered.isEmpty)
+
+        clock.inMeeting = false
+        advance(1)
+        #expect(model.phase == .awaitingBreak)
+        #expect(!model.isDeferredForMeeting)
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("开会时长时间不碰键鼠不算离开")
+    func meetingIsNotAway() {
+        model.start()
+        clock.inMeeting = true
+        clock.idle = 30 * 60
+        advance(60)
+        #expect(model.phase == .working)
+    }
+
+    @Test("会议结束后仍然没人操作，才判定为离开")
+    func awayAfterMeetingEnds() {
+        model.start()
+        clock.inMeeting = true
+        clock.idle = 30 * 60
+        advance(60)
+        clock.inMeeting = false
+        advance(1)
+        #expect(model.phase == .away)
+    }
+
     // MARK: - 状态保存与恢复
 
     /// 用同一个时钟新建一个模型，模拟重新打开 App
@@ -475,7 +519,7 @@ struct EyeBreakModelTests {
         let clock = clock
         return EyeBreakModel(
             workInterval: 20 * 60, restDuration: 20, reminder: spy,
-            now: { clock.now }, idleTime: { clock.idle }, awayThreshold: 5 * 60,
+            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, awayThreshold: 5 * 60,
             usesSystemTimer: false
         )
     }

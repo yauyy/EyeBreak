@@ -50,6 +50,8 @@ final class EyeBreakModel: ObservableObject {
     @Published private(set) var restDuration: TimeInterval
     /// 当前这一轮是「稍后提醒」推迟出来的短计时
     @Published private(set) var isSnoozing = false
+    /// 专注时间已到，但正在开会（麦克风使用中），提醒推迟到会议结束
+    @Published private(set) var isDeferredForMeeting = false
 
     /// 休息倒计时自然结束时发出（提前结束、跳过不算），界面据此播放撒花动画
     let breakCompleted = PassthroughSubject<Void, Never>()
@@ -62,6 +64,8 @@ final class EyeBreakModel: ObservableObject {
     private let now: () -> Date
     /// 距离上次键盘鼠标操作过去的秒数
     private let idleTime: () -> TimeInterval
+    /// 是否正在开会（麦克风被任意 App 使用）
+    private let isInMeeting: () -> Bool
     /// 无操作超过这个时长判定为离开；睡眠超过这个时长也视为已经休息过
     private let awayThreshold: TimeInterval
     private let snoozeInterval: TimeInterval
@@ -94,6 +98,7 @@ final class EyeBreakModel: ObservableObject {
         reminder: ReminderDelivering,
         now: @escaping () -> Date = Date.init,
         idleTime: @escaping () -> TimeInterval = SystemIdle.seconds,
+        isInMeeting: @escaping () -> Bool = MeetingDetector.isInMeeting,
         awayThreshold: TimeInterval = EyeBreakConfig.awayThreshold,
         snoozeInterval: TimeInterval = EyeBreakConfig.snoozeInterval,
         usesSystemTimer: Bool = true
@@ -103,6 +108,7 @@ final class EyeBreakModel: ObservableObject {
         self.reminder = reminder
         self.now = now
         self.idleTime = idleTime
+        self.isInMeeting = isInMeeting
         self.awayThreshold = awayThreshold
         self.snoozeInterval = snoozeInterval
         roundTotal = workInterval
@@ -274,8 +280,8 @@ final class EyeBreakModel: ObservableObject {
     func tick() {
         switch phase {
         case .working, .awaitingBreak:
-            // 休息中不检测：眺望时本来就不碰键鼠
-            if idleTime() >= awayThreshold {
+            // 休息中不检测：眺望时本来就不碰键鼠；开会时盯着屏幕但可能很久不碰键鼠，也不算离开
+            if idleTime() >= awayThreshold, !isInMeeting() {
                 enterAway()
                 return
             }
@@ -295,6 +301,16 @@ final class EyeBreakModel: ObservableObject {
         }
         switch phase {
         case .working:
+            // 开会时先不提醒，每秒检查一次，会议结束立即提醒
+            if isInMeeting() {
+                if !isDeferredForMeeting {
+                    logger.notice("Reminder deferred: microphone in use")
+                    isDeferredForMeeting = true
+                }
+                updateDisplay()
+                return
+            }
+            isDeferredForMeeting = false
             // 先把状态切到"等待休息"并清掉截止时间，再投递提醒：同一轮只可能触发一次，
             // 用户不点「开始休息」时计时保持冻结，也就不会反复提醒。
             // 计时器继续运行，只用于检测用户是否离开。
@@ -333,6 +349,7 @@ final class EyeBreakModel: ObservableObject {
     private func beginWorking(remaining: TimeInterval, roundTotal total: TimeInterval? = nil, snoozing: Bool = false) {
         roundTotal = total ?? workInterval
         isSnoozing = snoozing
+        isDeferredForMeeting = false
         deadline = now().addingTimeInterval(max(0, remaining))
         phase = .working
         startTicker()

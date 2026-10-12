@@ -56,7 +56,9 @@ struct MenuContentView: View {
     private var status: String {
         switch model.phase {
         case .idle: return "准备好了吗"
-        case .working: return model.isSnoozing ? "稍后提醒" : "专注中"
+        case .working:
+            if model.isDeferredForMeeting { return "会议结束后提醒" }
+            return model.isSnoozing ? "稍后提醒" : "专注中"
         case .paused: return "已暂停"
         case .awaitingBreak: return "该休息啦"
         case .resting: return "休息中"
