@@ -142,8 +142,8 @@ struct MenuContentView: View {
                 }
             }
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
+        .padding(Theme.Spacing.card)
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
     }
 }
 

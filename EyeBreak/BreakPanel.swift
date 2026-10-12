@@ -145,7 +145,8 @@ private struct BreakPanelView: View {
                     awaiting
                 }
             }
-            .padding(22)
+            .padding(.top, 22)
+            .padding([.horizontal, .bottom], Theme.Spacing.panel)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
             if state.celebrating && !reduceMotion {
@@ -157,9 +158,9 @@ private struct BreakPanelView: View {
         .animation(.easeInOut(duration: 0.25), value: model.phase)
         .frame(width: BreakPanelController.panelSize.width, height: BreakPanelController.panelSize.height)
         .background(Theme.cream)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous)
                 .strokeBorder(Theme.creamDeep, lineWidth: 2)
         )
         .environment(\.colorScheme, .light)
@@ -203,20 +204,21 @@ private struct BreakPanelView: View {
     }
 }
 
-/// 等待休息时的三个选择：开始休息为主按钮，稍后提醒和跳过为次要的文字按钮
+/// 等待休息时的三个选择：底部一排两个胶囊按钮（与面板圆角同心），跳过作为次要的文字按钮放在上方
 struct BreakChoices: View {
     @ObservedObject var model: EyeBreakModel
 
     var body: some View {
-        VStack(spacing: 6) {
-            Button("开始休息", action: model.startBreak)
-                .buttonStyle(PillButtonStyle())
-                .keyboardShortcut(.defaultAction)
-            HStack(spacing: 18) {
+        VStack(spacing: 8) {
+            Button("跳过这次", action: model.skipBreak)
+                .buttonStyle(PillButtonStyle(kind: .plain))
+            HStack(spacing: 10) {
                 Button(snoozeTitle, action: model.snooze)
-                Button("跳过", action: model.skipBreak)
+                    .buttonStyle(PillButtonStyle(kind: .secondary))
+                Button("开始休息", action: model.startBreak)
+                    .buttonStyle(PillButtonStyle())
+                    .keyboardShortcut(.defaultAction)
             }
-            .buttonStyle(PillButtonStyle(kind: .plain))
         }
     }
 

@@ -15,6 +15,31 @@ enum Theme {
     static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .rounded)
     }
+
+    /// 圆角规范：同心圆角，外层圆角 = 内层圆角 + 两者之间的间距，
+    /// 让容器边缘的弧线与内部控件的弧线平行。全部使用 continuous（超椭圆）曲线。
+    enum Radius {
+        /// 胶囊按钮：高度 40 的一半
+        static let control: CGFloat = 20
+        /// 圆形小控件（加减号、开关）：尺寸 24 的一半
+        static let small: CGFloat = 12
+        /// 设置卡片：圆形小控件 12 + 卡片内边距 12
+        static let card: CGFloat = small + Spacing.card
+        /// 休息提醒面板：胶囊按钮 20 + 面板边距 14
+        static let panel: CGFloat = control + Spacing.panel
+    }
+
+    enum Spacing {
+        /// 卡片内边距
+        static let card: CGFloat = 12
+        /// 休息提醒面板的左右和底部边距
+        static let panel: CGFloat = 14
+    }
+
+    /// 胶囊按钮的统一高度
+    static let controlHeight: CGFloat = Radius.control * 2
+    /// 圆形小控件的统一尺寸
+    static let smallControlSize: CGFloat = Radius.small * 2
 }
 
 /// 胶囊按钮：底下垫一层深色，按下时下沉，像软软的果冻按钮
@@ -28,8 +53,9 @@ struct PillButtonStyle: ButtonStyle {
             .font(Theme.font(14, .semibold))
             .lineLimit(1)
             .padding(.horizontal, kind == .plain ? 6 : 16)
-            .padding(.vertical, kind == .plain ? 4 : 9)
+            .padding(.vertical, kind == .plain ? 4 : 0)
             .frame(maxWidth: kind == .plain ? nil : .infinity)
+            .frame(height: kind == .plain ? nil : Theme.controlHeight)
             .foregroundStyle(foreground)
             .background {
                 if kind != .plain {
@@ -110,7 +136,7 @@ struct CuteStepper: View {
             Image(systemName: symbol)
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundStyle(enabled ? Theme.tomato : Theme.inkSoft)
-                .frame(width: 24, height: 24)
+                .frame(width: Theme.smallControlSize, height: Theme.smallControlSize)
                 .background(Circle().fill(.white))
                 .overlay(Circle().strokeBorder(Theme.creamDeep, lineWidth: 1.5))
         }
@@ -145,11 +171,12 @@ struct CuteToggleStyle: ToggleStyle {
                 ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                     Capsule()
                         .fill(configuration.isOn ? Theme.tomato : Theme.ink.opacity(0.15))
-                        .frame(width: 40, height: 24)
+                        .frame(width: 40, height: Theme.smallControlSize)
+                    // 圆点与开关外框同心：外框半径 12 = 圆点半径 10 + 间距 2
                     Circle()
                         .fill(.white)
                         .shadow(color: Theme.ink.opacity(0.15), radius: 1, y: 1)
-                        .frame(width: 20, height: 20)
+                        .frame(width: Theme.smallControlSize - 4, height: Theme.smallControlSize - 4)
                         .padding(2)
                 }
                 .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isOn)
