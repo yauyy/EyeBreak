@@ -76,7 +76,11 @@ struct MenuContentView: View {
         switch model.phase {
         case .idle: return "准备好了吗"
         case .working:
-            if model.isDeferredForMeeting { return "会议结束后提醒" }
+            switch model.deferReason {
+            case .meeting: return "会议结束后提醒"
+            case .fullscreen: return "退出全屏后提醒"
+            case nil: break
+            }
             return model.isSnoozing ? "稍后提醒" : "专注中"
         case .paused: return "已暂停"
         case .awaitingBreak: return "该休息啦"

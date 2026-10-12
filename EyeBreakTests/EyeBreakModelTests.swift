@@ -22,6 +22,8 @@ private final class FakeClock {
     var inMeeting = false
     /// 模拟当前是否在工作时段内
     var workTime = true
+    /// 模拟前台 App 是否全屏
+    var fullscreen = false
     func advance(_ seconds: TimeInterval) { now += seconds }
 }
 
@@ -35,7 +37,7 @@ struct EyeBreakModelTests {
         let clock = clock
         model = EyeBreakModel(
             workInterval: 20 * 60, restDuration: 20, reminder: spy,
-            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, isWorkTime: { clock.workTime }, awayThreshold: 5 * 60,
+            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, isFullscreen: { clock.fullscreen }, isWorkTime: { clock.workTime }, awayThreshold: 5 * 60,
             usesSystemTimer: false
         )
     }
@@ -579,6 +581,29 @@ struct EyeBreakModelTests {
         #expect(model.phase == .away)
     }
 
+    @Test("专注到点时正在全屏：先不提醒，退出全屏后立即提醒")
+    func deferReminderWhileFullscreen() {
+        model.start()
+        clock.fullscreen = true
+        advance(20 * 60)
+        #expect(model.deferReason == .fullscreen)
+        #expect(spy.delivered.isEmpty)
+        clock.fullscreen = false
+        advance(1)
+        #expect(model.phase == .awaitingBreak)
+        #expect(model.deferReason == nil)
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("全屏看视频时长时间不碰键鼠不算离开")
+    func fullscreenIsNotAway() {
+        model.start()
+        clock.fullscreen = true
+        clock.idle = 30 * 60
+        advance(60)
+        #expect(model.phase == .working)
+    }
+
     // MARK: - 工作时段
 
     @Test("专注中离开工作时段：冻结计时、不提醒")
@@ -671,7 +696,7 @@ struct EyeBreakModelTests {
         let clock = clock
         return EyeBreakModel(
             workInterval: 20 * 60, restDuration: 20, reminder: spy,
-            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, isWorkTime: { clock.workTime }, awayThreshold: 5 * 60,
+            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, isFullscreen: { clock.fullscreen }, isWorkTime: { clock.workTime }, awayThreshold: 5 * 60,
             usesSystemTimer: false
         )
     }

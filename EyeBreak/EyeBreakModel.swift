@@ -53,7 +53,17 @@ final class EyeBreakModel: ObservableObject {
     /// 当前这一轮是「稍后提醒」推迟出来的短计时
     @Published private(set) var isSnoozing = false
     /// 专注时间已到，但正在开会（麦克风使用中），提醒推迟到会议结束
-    @Published private(set) var isDeferredForMeeting = false
+    @Published private(set) var deferReason: DeferReason?
+
+    /// 到点后推迟提醒的原因
+    enum DeferReason: Equatable {
+        /// 麦克风被会议软件占用
+        case meeting
+        /// 正在全屏使用某个 App（看视频、演示等）
+        case fullscreen
+    }
+
+    var isDeferredForMeeting: Bool { deferReason == .meeting }
     /// 当前（或即将进行的）休息内容在轮换列表中的序号；每次正常提醒前往后挪一个
     @Published private(set) var exerciseIndex: Int
 
@@ -72,6 +82,8 @@ final class EyeBreakModel: ObservableObject {
     private let idleTime: () -> TimeInterval
     /// 是否正在开会（麦克风被任意 App 使用）
     private let isInMeeting: () -> Bool
+    /// 是否正在全屏使用某个 App
+    private let isFullscreen: @MainActor () -> Bool
     /// 当前是否在工作时段内（未启用工作时段时恒为 true）
     private let isWorkTime: () -> Bool
     /// 无操作超过这个时长判定为离开；睡眠超过这个时长也视为已经休息过
@@ -111,6 +123,7 @@ final class EyeBreakModel: ObservableObject {
         now: @escaping () -> Date = Date.init,
         idleTime: @escaping () -> TimeInterval = SystemIdle.seconds,
         isInMeeting: @escaping () -> Bool = MeetingDetector.isInMeeting,
+        isFullscreen: @escaping @MainActor () -> Bool = FullscreenDetector.isFrontmostAppFullscreen,
         isWorkTime: @escaping () -> Bool = { true },
         awayThreshold: TimeInterval = EyeBreakConfig.awayThreshold,
         snoozeInterval: TimeInterval = EyeBreakConfig.snoozeInterval,
@@ -124,6 +137,7 @@ final class EyeBreakModel: ObservableObject {
         self.now = now
         self.idleTime = idleTime
         self.isInMeeting = isInMeeting
+        self.isFullscreen = isFullscreen
         self.isWorkTime = isWorkTime
         self.awayThreshold = awayThreshold
         self.snoozeInterval = snoozeInterval
@@ -322,7 +336,7 @@ final class EyeBreakModel: ObservableObject {
         switch phase {
         case .working, .awaitingBreak:
             // 休息中不检测：眺望时本来就不碰键鼠；开会时盯着屏幕但可能很久不碰键鼠，也不算离开
-            if idleTime() >= awayThreshold, !isInMeeting() {
+            if idleTime() >= awayThreshold, currentDeferReason() == nil {
                 enterAway()
                 return
             }
@@ -344,16 +358,16 @@ final class EyeBreakModel: ObservableObject {
         }
         switch phase {
         case .working:
-            // 开会时先不提醒，每秒检查一次，会议结束立即提醒
-            if isInMeeting() {
-                if !isDeferredForMeeting {
-                    logger.notice("Reminder deferred: microphone in use")
-                    isDeferredForMeeting = true
+            // 开会或全屏时先不提醒，每秒检查一次，结束后立即提醒
+            if let reason = currentDeferReason() {
+                if deferReason != reason {
+                    logger.notice("Reminder deferred: \(String(describing: reason), privacy: .public)")
+                    deferReason = reason
                 }
                 updateDisplay()
                 return
             }
-            isDeferredForMeeting = false
+            deferReason = nil
             // 稍后提醒再次到点时保持同一个休息内容，其余情况换下一个
             if !isSnoozing { exerciseIndex += 1 }
             // 先把状态切到"等待休息"并清掉截止时间，再投递提醒：同一轮只可能触发一次，
@@ -402,11 +416,17 @@ final class EyeBreakModel: ObservableObject {
     private func enterOffHours() {
         logger.notice("Outside work hours, pausing")
         deadline = nil
-        isDeferredForMeeting = false
+        deferReason = nil
         reminder.cancelPendingReminders()
         phase = .offHours
         startTicker()
         updateDisplay()
+    }
+
+    private func currentDeferReason() -> DeferReason? {
+        if isInMeeting() { return .meeting }
+        if isFullscreen() { return .fullscreen }
+        return nil
     }
 
     /// 回来的判定：最近几秒内有键鼠操作
@@ -429,7 +449,7 @@ final class EyeBreakModel: ObservableObject {
     private func beginWorking(remaining: TimeInterval, roundTotal total: TimeInterval? = nil, snoozing: Bool = false) {
         roundTotal = total ?? workInterval
         isSnoozing = snoozing
-        isDeferredForMeeting = false
+        deferReason = nil
         deadline = now().addingTimeInterval(max(0, remaining))
         phase = .working
         startTicker()
