@@ -43,8 +43,12 @@ struct EyeBreakModelTests {
 
     /// 从开始专注一直走到等待休息
     private func finishWorkRound() {
+        finishWorkRoundOf(20 * 60)
+    }
+
+    private func finishWorkRoundOf(_ seconds: TimeInterval) {
         model.start()
-        advance(20 * 60)
+        advance(seconds)
     }
 
     // MARK: - 专注计时
@@ -188,6 +192,62 @@ struct EyeBreakModelTests {
         #expect(model.phase == .working)
         #expect(celebrations == 0)
         #expect(spy.breakCompleteSounds == 0)
+    }
+
+    @Test("稍后提醒：收起提醒，5 分钟后再提醒一次，进度按 5 分钟计算")
+    func snoozeRemindsAgain() {
+        finishWorkRound()
+        model.snooze()
+        #expect(model.phase == .working)
+        #expect(model.isSnoozing)
+        #expect(model.formattedRemaining == "05:00")
+        #expect(model.progress == 0)
+
+        advance(150)
+        #expect(model.progress == 0.5)
+
+        advance(150)
+        #expect(model.phase == .awaitingBreak)
+        #expect(spy.delivered.count == 2)
+    }
+
+    @Test("稍后提醒期间暂停再继续，仍按稍后提醒计算")
+    func snoozePauseResume() {
+        finishWorkRound()
+        model.snooze()
+        advance(60)
+        model.pause()
+        model.start()
+        #expect(model.isSnoozing)
+        #expect(model.formattedRemaining == "04:00")
+    }
+
+    @Test("稍后提醒结束后开始休息、休息完成，下一轮恢复正常专注时长")
+    func snoozeThenNormalRound() {
+        finishWorkRound()
+        model.snooze()
+        advance(300)
+        model.startBreak()
+        advance(20)
+        #expect(model.phase == .working)
+        #expect(!model.isSnoozing)
+        #expect(model.formattedRemaining == "20:00")
+    }
+
+    @Test("专注时长比推迟时长还短时，按专注时长推迟")
+    func snoozeNeverLongerThanWork() {
+        model.setWorkInterval(3 * 60)
+        finishWorkRoundOf(3 * 60)
+        model.snooze()
+        #expect(model.formattedRemaining == "03:00")
+    }
+
+    @Test("只有等待休息时才能稍后提醒")
+    func snoozeOnlyWhenAwaiting() {
+        model.start()
+        model.snooze()
+        #expect(!model.isSnoozing)
+        #expect(model.formattedRemaining == "20:00")
     }
 
     @Test("等待休息/休息中，开始、暂停、开始休息等无关操作无效")

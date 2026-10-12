@@ -42,6 +42,9 @@ enum EyeBreakConfig {
         UserDefaults.standard.set(Int(restDuration), forKey: restSecondsKey)
     }
 
+    /// 「稍后提醒」推迟的时长
+    static let snoozeInterval: TimeInterval = 5 * 60
+
     private static let snapshotKey = "timerSnapshot"
 
     static func saveSnapshot(_ snapshot: EyeBreakModel.Snapshot) {

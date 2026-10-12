@@ -10,7 +10,7 @@ final class BreakPanelController {
         @Published var celebrating = false
     }
 
-    static let panelSize = NSSize(width: 300, height: 250)
+    static let panelSize = NSSize(width: 300, height: 276)
     private static let celebrationDuration: UInt64 = 2_800_000_000
 
     private let model: EyeBreakModel
@@ -173,13 +173,7 @@ private struct BreakPanelView: View {
                 .foregroundStyle(Theme.inkSoft)
                 .padding(.top, 4)
             Spacer(minLength: 12)
-            HStack(spacing: 10) {
-                Button("跳过", action: model.skipBreak)
-                    .buttonStyle(PillButtonStyle(kind: .secondary))
-                Button("开始休息", action: model.startBreak)
-                    .buttonStyle(PillButtonStyle())
-                    .keyboardShortcut(.defaultAction)
-            }
+            BreakChoices(model: model)
         }
     }
 
@@ -200,6 +194,29 @@ private struct BreakPanelView: View {
             Button("提前结束", action: model.skipBreak)
                 .buttonStyle(PillButtonStyle(kind: .plain))
         }
+    }
+}
+
+/// 等待休息时的三个选择：开始休息为主按钮，稍后提醒和跳过为次要的文字按钮
+struct BreakChoices: View {
+    @ObservedObject var model: EyeBreakModel
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Button("开始休息", action: model.startBreak)
+                .buttonStyle(PillButtonStyle())
+                .keyboardShortcut(.defaultAction)
+            HStack(spacing: 18) {
+                Button(snoozeTitle, action: model.snooze)
+                Button("跳过", action: model.skipBreak)
+            }
+            .buttonStyle(PillButtonStyle(kind: .plain))
+        }
+    }
+
+    private var snoozeTitle: String {
+        let seconds = Int(min(EyeBreakConfig.snoozeInterval, model.workInterval))
+        return seconds >= 60 ? "\(seconds / 60) 分钟后" : "\(seconds) 秒后"
     }
 }
 

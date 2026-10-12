@@ -48,6 +48,8 @@ final class EyeBreakModel: ObservableObject {
     @Published private(set) var remainingSeconds: Int
     @Published private(set) var workInterval: TimeInterval
     @Published private(set) var restDuration: TimeInterval
+    /// 当前这一轮是「稍后提醒」推迟出来的短计时
+    @Published private(set) var isSnoozing = false
 
     /// 休息倒计时自然结束时发出（提前结束、跳过不算），界面据此播放撒花动画
     let breakCompleted = PassthroughSubject<Void, Never>()
@@ -62,6 +64,9 @@ final class EyeBreakModel: ObservableObject {
     private let idleTime: () -> TimeInterval
     /// 无操作超过这个时长判定为离开；睡眠超过这个时长也视为已经休息过
     private let awayThreshold: TimeInterval
+    private let snoozeInterval: TimeInterval
+    /// 当前这一轮专注的总时长（正常是专注时长，稍后提醒时是推迟的时长），用于计算进度
+    private var roundTotal: TimeInterval
     private let usesSystemTimer: Bool
     private let logger = Logger(subsystem: "EyeBreak", category: "timer")
 
@@ -90,6 +95,7 @@ final class EyeBreakModel: ObservableObject {
         now: @escaping () -> Date = Date.init,
         idleTime: @escaping () -> TimeInterval = SystemIdle.seconds,
         awayThreshold: TimeInterval = EyeBreakConfig.awayThreshold,
+        snoozeInterval: TimeInterval = EyeBreakConfig.snoozeInterval,
         usesSystemTimer: Bool = true
     ) {
         self.workInterval = workInterval
@@ -98,6 +104,8 @@ final class EyeBreakModel: ObservableObject {
         self.now = now
         self.idleTime = idleTime
         self.awayThreshold = awayThreshold
+        self.snoozeInterval = snoozeInterval
+        roundTotal = workInterval
         self.usesSystemTimer = usesSystemTimer
         pausedRemaining = workInterval
         remainingSeconds = Self.displaySeconds(workInterval)
@@ -113,7 +121,12 @@ final class EyeBreakModel: ObservableObject {
 
     /// 当前阶段已经过去的比例，0...1
     var progress: Double {
-        let total = isOnBreak ? restDuration : workInterval
+        let total: TimeInterval
+        switch phase {
+        case .awaitingBreak, .resting: total = restDuration
+        case .working, .paused: total = roundTotal
+        case .idle, .away: total = workInterval
+        }
         guard total > 0 else { return 0 }
         return min(1, max(0, 1 - Double(remainingSeconds) / total))
     }
@@ -124,7 +137,7 @@ final class EyeBreakModel: ObservableObject {
     func start() {
         switch phase {
         case .idle, .away: beginWorking(remaining: workInterval)
-        case .paused: beginWorking(remaining: pausedRemaining)
+        case .paused: resumeWorking()
         case .working, .awaitingBreak, .resting: return
         }
     }
@@ -155,6 +168,14 @@ final class EyeBreakModel: ObservableObject {
         phase = .resting
         startTicker()
         updateDisplay()
+    }
+
+    /// 稍后提醒：收起提醒，过一会儿（默认 5 分钟，不超过专注时长）再提醒一次。
+    func snooze() {
+        guard phase == .awaitingBreak else { return }
+        reminder.cancelPendingReminders()
+        let interval = min(snoozeInterval, workInterval)
+        beginWorking(remaining: interval, roundTotal: interval, snoozing: true)
     }
 
     /// 跳过本次休息 / 提前结束休息：不播放庆祝，直接开始新一轮专注。
@@ -308,8 +329,19 @@ final class EyeBreakModel: ObservableObject {
         beginWorking(remaining: workInterval)
     }
 
-    private func beginWorking(remaining: TimeInterval) {
+    /// 开始新一轮专注计时（默认一整轮）
+    private func beginWorking(remaining: TimeInterval, roundTotal total: TimeInterval? = nil, snoozing: Bool = false) {
+        roundTotal = total ?? workInterval
+        isSnoozing = snoozing
         deadline = now().addingTimeInterval(max(0, remaining))
+        phase = .working
+        startTicker()
+        updateDisplay()
+    }
+
+    /// 从暂停处继续，保留本轮的总时长和是否为稍后提醒
+    private func resumeWorking() {
+        deadline = now().addingTimeInterval(max(0, pausedRemaining))
         phase = .working
         startTicker()
         updateDisplay()
