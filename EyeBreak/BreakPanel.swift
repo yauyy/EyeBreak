@@ -89,8 +89,11 @@ final class BreakPanelController {
         })
     }
 
+    /// 多显示器时出现在鼠标所在的屏幕上，也就是用户正在看的那块
     private func position(_ panel: NSPanel) {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens.first
+        guard let screen else { return }
         let frame = screen.visibleFrame
         panel.setFrameOrigin(NSPoint(x: frame.maxX - Self.panelSize.width - 16, y: frame.maxY - Self.panelSize.height - 12))
     }
