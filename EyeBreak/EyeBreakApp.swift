@@ -8,7 +8,7 @@ struct EyeBreakApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin, stats: appDelegate.stats, sounds: appDelegate.sounds)
+            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin, stats: appDelegate.stats, sounds: appDelegate.sounds, updates: appDelegate.updates)
         } label: {
             MenuBarLabel(model: appDelegate.model)
         }
@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let sounds: ReminderSounds
     let launchAtLogin = LaunchAtLogin()
     let stats = TomatoStats()
+    let updates = UpdateChecker()
     private var breakPanel: BreakPanelController?
     private var cancellables: Set<AnyCancellable> = []
 
@@ -63,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // 先恢复再开始保存，避免启动时的初始状态覆盖掉上次的快照
         model.onSnapshot = { EyeBreakConfig.saveSnapshot($0) }
+        updates.startAutomaticChecks()
         #if DEBUG
         Logger(subsystem: "EyeBreak", category: "debug")
             .notice("Idle seconds at launch: \(SystemIdle.seconds(), format: .fixed(precision: 1)), away threshold: \(EyeBreakConfig.awayThreshold), login item enabled: \(self.launchAtLogin.isEnabled), audio devices: \(MeetingDetector.audioDevices().count), running audio devices: \(MeetingDetector.audioDevices().filter(MeetingDetector.isAudioDeviceRunning).count), mic in use: \(MeetingDetector.isMicrophoneInUse())")

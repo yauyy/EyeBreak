@@ -5,16 +5,21 @@ struct MenuContentView: View {
     @ObservedObject var launchAtLogin: LaunchAtLogin
     @ObservedObject var stats: TomatoStats
     @ObservedObject var sounds: ReminderSounds
+    @ObservedObject var updates: UpdateChecker
 
     var body: some View {
         VStack(spacing: 18) {
             header
+            if let release = updates.available {
+                UpdateBanner(version: release.version, download: updates.openDownloadPage)
+            }
             VStack(spacing: 10) {
                 ring
                 TomatoTally(today: stats.today, streak: stats.streak)
             }
             controls
             settings
+            VersionFooter(updates: updates)
         }
         .padding(18)
         .frame(width: 280)
@@ -142,6 +147,12 @@ struct MenuContentView: View {
                     .foregroundStyle(Theme.ink)
             }
             .toggleStyle(CuteToggleStyle())
+            Toggle(isOn: $updates.automaticChecks) {
+                Text("自动检查更新")
+                    .font(Theme.font(14, .medium))
+                    .foregroundStyle(Theme.ink)
+            }
+            .toggleStyle(CuteToggleStyle())
             if launchAtLogin.needsApproval || launchAtLogin.failed {
                 HStack {
                     Text(launchAtLogin.failed ? "设置失败，可在系统设置里手动添加" : "需要在系统设置里允许")
@@ -234,5 +245,58 @@ private struct SoundPicker: View {
                 .strokeBorder(Theme.creamDeep, lineWidth: 1)
         )
         .animation(.easeOut(duration: 0.15), value: selection)
+    }
+}
+
+/// 有新版本时出现在菜单顶部的提示条
+private struct UpdateBanner: View {
+    let version: String
+    let download: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("有新版本 \(version)")
+                .font(Theme.font(13, .semibold))
+                .foregroundStyle(Theme.ink)
+            Spacer()
+            Button("下载", action: download)
+                .buttonStyle(PillButtonStyle())
+                .fixedSize()
+        }
+        .padding(.leading, 12)
+        .padding([.vertical, .trailing], 4)
+        .background(
+            // 外框圆角 12 = 按钮圆角 8 + 内边距 4
+            RoundedRectangle(cornerRadius: Theme.Radius.control + 4, style: .continuous)
+                .fill(Theme.tomato.opacity(0.1))
+        )
+    }
+}
+
+/// 菜单底部：当前版本号与手动检查更新
+private struct VersionFooter: View {
+    @ObservedObject var updates: UpdateChecker
+
+    var body: some View {
+        HStack {
+            Text("版本 \(updates.currentVersion)")
+                .font(Theme.font(12))
+                .foregroundStyle(Theme.inkSoft)
+            Spacer()
+            Button(title) {
+                Task { await updates.check() }
+            }
+            .buttonStyle(PillButtonStyle(kind: .plain))
+            .disabled(updates.status == .checking)
+        }
+    }
+
+    private var title: String {
+        switch updates.status {
+        case .idle: return "检查更新"
+        case .checking: return "检查中…"
+        case .upToDate: return updates.available == nil ? "已是最新版本" : "检查更新"
+        case .failed: return "检查失败，点此重试"
+        }
     }
 }

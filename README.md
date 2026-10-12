@@ -32,13 +32,16 @@ xattr -dr com.apple.quarantine /Applications/EyeBreak.app
 - **退出或重启**：会记住计时状态，重新打开后接着来
 - **合盖睡眠**：短暂睡眠后接着计时，睡了很久则开始新一轮
 
-**可调整的设置**：专注时长（5–180 分钟）、眺望时长（5–600 秒）、提示音（可关闭）、开机自启。
+**可调整的设置**：专注时长（5–180 分钟）、眺望时长（5–600 秒）、提示音（可关闭）、开机自启、自动检查更新。
+
+**更新**：有新版本时，菜单顶部会出现提示，点「下载」打开 GitHub 下载页；菜单底部也可以手动「检查更新」。
 
 系统开了「减少动态效果」时，撒花和番茄仔的动作会自动关闭。
 
 - Swift + SwiftUI + AppKit，原生 `MenuBarExtra`，不显示 Dock 图标
 - 支持 macOS 13.0 及以上
-- 无网络、无账户、无埋点；开启 App Sandbox，不申请任何与提醒无关的权限
+- 无账户、无埋点；开启 App Sandbox，不申请任何与提醒无关的权限
+- 唯一的联网行为是检查更新：每天最多一次读取 GitHub 上最新 Release 的版本号，不上传任何数据；在设置里关闭「自动检查更新」后完全不联网
 
 ## 一、用 Xcode 运行（推荐新手）
 
@@ -65,6 +68,7 @@ xattr -dr com.apple.quarantine /Applications/EyeBreak.app
 |---|---|
 | `-EyeBreakAutoStart YES` | 启动后自动开始计时，不用手动点「开始」 |
 | `-EyeBreakTestAway 10` | 把「离开电脑」的判定时间从 5 分钟缩短为 10 秒 |
+| `-EyeBreakTestCurrentVersion 0.9` | 假装当前是旧版本，用来测试新版本提示 |
 
 该参数**只在 Debug 构建中生效**，Release 构建永远是 20 分钟。测完记得取消勾选。
 
@@ -141,12 +145,14 @@ EyeBreak/
 ├── SystemIdle.swift           读取键鼠空闲时间（判断是否离开）
 ├── MeetingDetector.swift      读取麦克风是否被占用（判断是否开会）
 ├── LaunchAtLogin.swift        开机自启（SMAppService）
+├── UpdateChecker.swift        检查更新：读取 GitHub 最新 Release 版本号
 ├── ConfettiView.swift         撒花动画（SwiftUI Canvas + TimelineView）
 └── Assets.xcassets            应用图标、番茄仔角色图、菜单栏表情图标
 EyeBreakTests/
 ├── EyeBreakModelTests.swift   计时状态机单元测试（注入假时钟、空闲时间、会议状态，毫秒级跑完）
 ├── TomatoStatsTests.swift     番茄收集统计
-└── ReminderSoundsTests.swift  提示音设置
+├── ReminderSoundsTests.swift  提示音设置
+└── UpdateCheckerTests.swift   版本比较、接口解析、自动检查频率
 Design/
 ├── icons/                     初版 SVG 图标方案（6 套，备选）
 └── icons-canvas/              Q 版 Canvas 图标方案（6 套）
