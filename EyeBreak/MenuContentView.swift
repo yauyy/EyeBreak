@@ -31,7 +31,7 @@ struct MenuContentView: View {
                 .buttonStyle(.plain)
                 .help("查看本周番茄")
                 if showWeekStats {
-                    WeekChart(days: stats.lastSevenDays)
+                    WeekChart(days: stats.lastSevenDays, unlocked: stats.unlocked)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
@@ -375,10 +375,12 @@ private struct VersionFooter: View {
 /// 最近 7 天的番茄柱状图：今天是番茄红，其他天是浅色
 private struct WeekChart: View {
     let days: [TomatoStats.Day]
+    let unlocked: Set<Achievement>
     private let maxBarHeight: CGFloat = 44
 
     var body: some View {
         let peak = max(days.map(\.count).max() ?? 0, 1)
+        VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .bottom, spacing: 8) {
             ForEach(days) { day in
                 VStack(spacing: 4) {
@@ -396,10 +398,29 @@ private struct WeekChart: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .padding(Theme.Spacing.card)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("最近 7 天共收集 \(days.map(\.count).reduce(0, +)) 个番茄")
+
+        VStack(alignment: .leading, spacing: 6) {
+            Text("成就 \(unlocked.count)/\(Achievement.allCases.count)")
+                .font(Theme.font(12, .semibold))
+                .foregroundStyle(Theme.inkSoft)
+            FlowLayout(spacing: 5) {
+                ForEach(Achievement.allCases) { achievement in
+                    let earned = unlocked.contains(achievement)
+                    Text(achievement.title)
+                        .font(Theme.font(11, .semibold))
+                        .foregroundStyle(earned ? .white : Theme.inkSoft)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(earned ? Theme.tomato : Theme.ink.opacity(0.07)))
+                        .accessibilityLabel(earned ? "已解锁：\(achievement.title)" : "未解锁：\(achievement.title)")
+                }
+            }
+        }
+        }
+        .padding(Theme.Spacing.card)
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
     }
 
     private func barColor(_ day: TomatoStats.Day) -> Color {

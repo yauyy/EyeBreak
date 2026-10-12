@@ -138,7 +138,7 @@ private struct BreakPanelView: View {
 
             Group {
                 if state.celebrating {
-                    CelebrationContent(todayCount: stats.today)
+                    CelebrationContent(todayCount: stats.today, unlocked: stats.justUnlocked)
                 } else if model.phase == .resting {
                     resting
                 } else {
@@ -245,6 +245,7 @@ private struct BobbingTomato: View {
 /// 休息完成：番茄仔弹出来 + 一句话
 private struct CelebrationContent: View {
     var todayCount: Int
+    var unlocked: [Achievement]
     @State private var popped = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -259,6 +260,14 @@ private struct CelebrationContent: View {
             Text("今天第 \(todayCount) 个番茄")
                 .font(Theme.font(13, .medium))
                 .foregroundStyle(Theme.tomato)
+            if let achievement = unlocked.last {
+                Text("解锁成就：\(achievement.title)")
+                    .font(Theme.font(12, .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.leaf))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {

@@ -10,6 +10,12 @@ final class TomatoStats: ObservableObject {
     @Published private(set) var streak = 0
     /// 最近 7 天（含今天，按时间先后）每天收集的番茄
     @Published private(set) var lastSevenDays: [Day] = []
+    /// 累计收集的番茄（单独保存，不受每日记录只保留一年的影响）
+    @Published private(set) var total = 0
+    /// 已解锁的成就
+    @Published private(set) var unlocked: Set<Achievement> = []
+    /// 最近一次休息新解锁的成就（用于庆祝画面）；下次休息时清空
+    @Published private(set) var justUnlocked: [Achievement] = []
 
     struct Day: Equatable, Identifiable {
         let date: Date
@@ -21,6 +27,8 @@ final class TomatoStats: ObservableObject {
     }
 
     private static let storageKey = "tomatoCounts"
+    private static let totalKey = "tomatoTotal"
+    private static let achievementsKey = "achievements"
     private static let keepDays = 400
 
     private let defaults: UserDefaults
@@ -34,14 +42,27 @@ final class TomatoStats: ObservableObject {
         self.now = now
         self.calendar = calendar
         counts = defaults.dictionary(forKey: Self.storageKey) as? [String: Int] ?? [:]
+        total = defaults.object(forKey: Self.totalKey) as? Int ?? counts.values.reduce(0, +)
+        unlocked = Set((defaults.stringArray(forKey: Self.achievementsKey) ?? []).compactMap(Achievement.init(rawValue:)))
         refresh()
     }
 
     func recordBreak() {
         counts[key(for: now()), default: 0] += 1
+        total += 1
         prune()
         defaults.set(counts, forKey: Self.storageKey)
+        defaults.set(total, forKey: Self.totalKey)
         refresh()
+
+        let newlyMet = Achievement.allCases.filter {
+            !unlocked.contains($0) && $0.isMet(today: today, streak: streak, total: total)
+        }
+        justUnlocked = newlyMet
+        if !newlyMet.isEmpty {
+            unlocked.formUnion(newlyMet)
+            defaults.set(unlocked.map(\.rawValue).sorted(), forKey: Self.achievementsKey)
+        }
     }
 
     /// 重新计算今日数量和连续天数（跨过零点后打开菜单时调用）
