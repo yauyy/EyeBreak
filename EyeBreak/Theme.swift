@@ -132,3 +132,30 @@ struct TomatoAvatar: View {
             .frame(width: size, height: size)
     }
 }
+
+/// 胶囊开关：开启时番茄红，关闭时奶油色
+struct CuteToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            HStack {
+                configuration.label
+                Spacer()
+                ZStack(alignment: configuration.isOn ? .trailing : .leading) {
+                    Capsule()
+                        .fill(configuration.isOn ? Theme.tomato : Theme.ink.opacity(0.15))
+                        .frame(width: 40, height: 24)
+                    Circle()
+                        .fill(.white)
+                        .shadow(color: Theme.ink.opacity(0.15), radius: 1, y: 1)
+                        .frame(width: 20, height: 20)
+                        .padding(2)
+                }
+                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isOn)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}

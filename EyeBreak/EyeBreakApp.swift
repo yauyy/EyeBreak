@@ -7,7 +7,7 @@ struct EyeBreakApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(model: appDelegate.model)
+            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin)
         } label: {
             MenuBarLabel(model: appDelegate.model)
         }
@@ -20,6 +20,7 @@ struct EyeBreakApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model: EyeBreakModel
+    let launchAtLogin = LaunchAtLogin()
     private var breakPanel: BreakPanelController?
 
     override init() {
@@ -42,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if EyeBreakConfig.autoStart { model.start() }
         #if DEBUG
         Logger(subsystem: "EyeBreak", category: "debug")
-            .notice("Idle seconds at launch: \(SystemIdle.seconds(), format: .fixed(precision: 1)), away threshold: \(EyeBreakConfig.awayThreshold)")
+            .notice("Idle seconds at launch: \(SystemIdle.seconds(), format: .fixed(precision: 1)), away threshold: \(EyeBreakConfig.awayThreshold), login item enabled: \(self.launchAtLogin.isEnabled)")
         #endif
     }
 

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuContentView: View {
     @ObservedObject var model: EyeBreakModel
+    @ObservedObject var launchAtLogin: LaunchAtLogin
 
     var body: some View {
         VStack(spacing: 18) {
@@ -14,6 +15,8 @@ struct MenuContentView: View {
         .frame(width: 280)
         .background(Theme.cream)
         .environment(\.colorScheme, .light)
+        // 用户可能在系统设置里改过登录项
+        .onAppear { launchAtLogin.refresh() }
     }
 
     private var header: some View {
@@ -117,6 +120,22 @@ struct MenuContentView: View {
                 ),
                 range: EyeBreakConfig.restSecondsRange, step: 5
             )
+            Toggle(isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) })) {
+                Text("开机自启")
+                    .font(Theme.font(14, .medium))
+                    .foregroundStyle(Theme.ink)
+            }
+            .toggleStyle(CuteToggleStyle())
+            if launchAtLogin.needsApproval || launchAtLogin.failed {
+                HStack {
+                    Text(launchAtLogin.failed ? "设置失败，可在系统设置里手动添加" : "需要在系统设置里允许")
+                        .font(Theme.font(12))
+                        .foregroundStyle(Theme.inkSoft)
+                    Spacer()
+                    Button("去设置", action: launchAtLogin.openLoginItemsSettings)
+                        .buttonStyle(PillButtonStyle(kind: .plain))
+                }
+            }
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
