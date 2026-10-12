@@ -130,13 +130,9 @@ struct MenuContentView: View {
                 Text("提示音")
                     .font(Theme.font(14, .medium))
                     .foregroundStyle(Theme.ink)
-                HStack(spacing: 6) {
-                    ForEach(ReminderSound.allCases) { option in
-                        SoundChip(title: option.title, isSelected: option == sounds.choice) {
-                            sounds.choice = option
-                            sounds.preview(option)
-                        }
-                    }
+                SoundPicker(selection: sounds.choice) { option in
+                    sounds.choice = option
+                    sounds.preview(option)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -201,24 +197,42 @@ private struct TomatoTally: View {
     }
 }
 
-/// 提示音选项：选中时番茄红，未选中时白底
-private struct SoundChip: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
+/// 提示音选择：macOS 分段控件样式，选中项为番茄红。外框圆角 8 = 选项圆角 6 + 内边距 2
+private struct SoundPicker: View {
+    let selection: ReminderSound
+    let onSelect: (ReminderSound) -> Void
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(Theme.font(12, .semibold))
-                .foregroundStyle(isSelected ? .white : Theme.ink)
-                .padding(.horizontal, 10)
-                .frame(height: Theme.smallControlSize)
-                .background(Capsule().fill(isSelected ? Theme.tomato : .white))
-                .overlay(Capsule().strokeBorder(isSelected ? .clear : Theme.creamDeep, lineWidth: 1.5))
-                .contentShape(Capsule())
+        HStack(spacing: 0) {
+            ForEach(ReminderSound.allCases) { option in
+                let isSelected = option == selection
+                Button {
+                    onSelect(option)
+                } label: {
+                    Text(option.title)
+                        .font(Theme.font(12, .semibold))
+                        .foregroundStyle(isSelected ? .white : Theme.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: Theme.smallControlSize - Theme.Spacing.segmented * 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
+                                .fill(isSelected ? Theme.tomato : .clear)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .padding(Theme.Spacing.segmented)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.segmented, style: .continuous)
+                .fill(.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.segmented, style: .continuous)
+                .strokeBorder(Theme.creamDeep, lineWidth: 1)
+        )
+        .animation(.easeOut(duration: 0.15), value: selection)
     }
 }

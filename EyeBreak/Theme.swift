@@ -16,16 +16,18 @@ enum Theme {
         .system(size: size, weight: weight, design: .rounded)
     }
 
-    /// 圆角规范：同心圆角，外层圆角 = 内层圆角 + 两者之间的间距，
-    /// 让容器边缘的弧线与内部控件的弧线平行。全部使用 continuous（超椭圆）曲线。
+    /// 圆角规范：数值对齐 macOS 原生界面，统一使用 continuous（超椭圆）曲线。
+    /// 控件贴着容器边角时保持同心：外层圆角 = 内层圆角 + 两者之间的间距。
     enum Radius {
-        /// 胶囊按钮：高度 40 的一半
-        static let control: CGFloat = 20
-        /// 圆形小控件（加减号、开关）：尺寸 24 的一半
-        static let small: CGFloat = 12
-        /// 设置卡片：圆形小控件 12 + 卡片内边距 12
-        static let card: CGFloat = small + Spacing.card
-        /// 休息提醒面板：胶囊按钮 20 + 面板边距 14
+        /// 按钮：macOS 大号按钮的圆角
+        static let control: CGFloat = 8
+        /// 小控件（加减按钮、分段控件里的选项）
+        static let small: CGFloat = 6
+        /// 分段控件外框：选项圆角 6 + 内边距 2
+        static let segmented: CGFloat = small + Spacing.segmented
+        /// 设置卡片：对齐「系统设置」里的分组卡片
+        static let card: CGFloat = 12
+        /// 休息提醒面板：底部按钮圆角 8 + 面板边距 12，接近 macOS 通知横幅
         static let panel: CGFloat = control + Spacing.panel
     }
 
@@ -33,16 +35,18 @@ enum Theme {
         /// 卡片内边距
         static let card: CGFloat = 12
         /// 休息提醒面板的左右和底部边距
-        static let panel: CGFloat = 14
+        static let panel: CGFloat = 12
+        /// 分段控件外框与选项之间的间距
+        static let segmented: CGFloat = 2
     }
 
-    /// 胶囊按钮的统一高度
-    static let controlHeight: CGFloat = Radius.control * 2
-    /// 圆形小控件的统一尺寸
-    static let smallControlSize: CGFloat = Radius.small * 2
+    /// 按钮的统一高度（macOS 大号控件）
+    static let controlHeight: CGFloat = 32
+    /// 小控件的统一尺寸
+    static let smallControlSize: CGFloat = 24
 }
 
-/// 胶囊按钮：底下垫一层深色，按下时下沉，像软软的果冻按钮
+/// 圆角按钮：底下垫一层深色，按下时下沉，保留一点 Q 版的立体感
 struct PillButtonStyle: ButtonStyle {
     enum Kind { case primary, secondary, plain }
     var kind: Kind = .primary
@@ -60,14 +64,14 @@ struct PillButtonStyle: ButtonStyle {
             .background {
                 if kind != .plain {
                     ZStack {
-                        Capsule().fill(base).offset(y: pressed ? 1 : 3)
-                        Capsule().fill(fill).offset(y: pressed ? 1 : 0)
+                        Self.shape.fill(base).offset(y: pressed ? 1 : 2)
+                        Self.shape.fill(fill).offset(y: pressed ? 1 : 0)
                     }
                 }
             }
             .scaleEffect(pressed ? 0.97 : 1)
             .animation(.spring(response: 0.22, dampingFraction: 0.6), value: pressed)
-            .contentShape(Capsule())
+            .contentShape(Self.shape)
     }
 
     private var foreground: Color {
@@ -77,6 +81,8 @@ struct PillButtonStyle: ButtonStyle {
         case .plain: return Theme.inkSoft
         }
     }
+
+    private static let shape = RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
 
     private var fill: Color { kind == .primary ? Theme.tomato : .white }
     private var base: Color { kind == .primary ? Theme.tomatoDeep : Theme.creamDeep }
@@ -103,7 +109,7 @@ struct RingView<Content: View>: View {
     }
 }
 
-/// 圆形加减步进器
+/// 加减步进器
 struct CuteStepper: View {
     let title: String
     let unit: String
@@ -137,8 +143,8 @@ struct CuteStepper: View {
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundStyle(enabled ? Theme.tomato : Theme.inkSoft)
                 .frame(width: Theme.smallControlSize, height: Theme.smallControlSize)
-                .background(Circle().fill(.white))
-                .overlay(Circle().strokeBorder(Theme.creamDeep, lineWidth: 1.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous).fill(.white))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous).strokeBorder(Theme.creamDeep, lineWidth: 1.5))
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -172,7 +178,7 @@ struct CuteToggleStyle: ToggleStyle {
                     Capsule()
                         .fill(configuration.isOn ? Theme.tomato : Theme.ink.opacity(0.15))
                         .frame(width: 40, height: Theme.smallControlSize)
-                    // 圆点与开关外框同心：外框半径 12 = 圆点半径 10 + 间距 2
+                    // 开关保持 macOS 原生的胶囊形；圆点与外框同心：外框半径 12 = 圆点半径 10 + 间距 2
                     Circle()
                         .fill(.white)
                         .shadow(color: Theme.ink.opacity(0.15), radius: 1, y: 1)

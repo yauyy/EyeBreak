@@ -10,7 +10,7 @@ final class BreakPanelController {
         @Published var celebrating = false
     }
 
-    static let panelSize = NSSize(width: 300, height: 276)
+    static let panelSize = NSSize(width: 300, height: 264)
     private static let celebrationDuration: UInt64 = 2_800_000_000
 
     private let model: EyeBreakModel
