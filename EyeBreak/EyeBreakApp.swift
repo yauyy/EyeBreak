@@ -8,7 +8,7 @@ struct EyeBreakApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin, stats: appDelegate.stats)
+            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin, stats: appDelegate.stats, sounds: appDelegate.sounds)
         } label: {
             MenuBarLabel(model: appDelegate.model)
         }
@@ -21,22 +21,26 @@ struct EyeBreakApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model: EyeBreakModel
+    let sounds: ReminderSounds
     let launchAtLogin = LaunchAtLogin()
     let stats = TomatoStats()
     private var breakPanel: BreakPanelController?
     private var cancellables: Set<AnyCancellable> = []
 
     override init() {
+        let sounds = ReminderSounds(choice: EyeBreakConfig.reminderSound)
+        sounds.onChoiceChanged = { EyeBreakConfig.reminderSound = $0 }
         let model = EyeBreakModel(
             workInterval: EyeBreakConfig.workInterval,
             restDuration: EyeBreakConfig.restDuration,
-            reminder: ReminderSounds(),
+            reminder: sounds,
             exerciseIndex: EyeBreakConfig.exerciseIndex
         )
         model.onPreferencesChanged = { work, rest in
             EyeBreakConfig.save(workInterval: work, restDuration: rest)
         }
         self.model = model
+        self.sounds = sounds
         super.init()
     }
 

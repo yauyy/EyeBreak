@@ -47,6 +47,13 @@ enum EyeBreakConfig {
 
     private static let snapshotKey = "timerSnapshot"
     private static let exerciseIndexKey = "exerciseIndex"
+    private static let reminderSoundKey = "reminderSound"
+
+    /// 提醒音选择，默认「清脆」（Glass）
+    static var reminderSound: ReminderSound {
+        get { UserDefaults.standard.string(forKey: reminderSoundKey).flatMap(ReminderSound.init(rawValue:)) ?? .glass }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: reminderSoundKey) }
+    }
 
     /// 上次轮到的休息内容序号；从未休息过时为 -1，第一次休息从「看看远处」开始
     static var exerciseIndex: Int {

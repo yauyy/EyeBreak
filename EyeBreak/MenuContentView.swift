@@ -4,6 +4,7 @@ struct MenuContentView: View {
     @ObservedObject var model: EyeBreakModel
     @ObservedObject var launchAtLogin: LaunchAtLogin
     @ObservedObject var stats: TomatoStats
+    @ObservedObject var sounds: ReminderSounds
 
     var body: some View {
         VStack(spacing: 18) {
@@ -125,6 +126,20 @@ struct MenuContentView: View {
                 ),
                 range: EyeBreakConfig.restSecondsRange, step: 5
             )
+            VStack(alignment: .leading, spacing: 8) {
+                Text("提示音")
+                    .font(Theme.font(14, .medium))
+                    .foregroundStyle(Theme.ink)
+                HStack(spacing: 6) {
+                    ForEach(ReminderSound.allCases) { option in
+                        SoundChip(title: option.title, isSelected: option == sounds.choice) {
+                            sounds.choice = option
+                            sounds.preview(option)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             Toggle(isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) })) {
                 Text("开机自启")
                     .font(Theme.font(14, .medium))
@@ -183,5 +198,27 @@ private struct TomatoTally: View {
         .frame(height: 20)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("今天收集了 \(today) 个番茄，连续 \(streak) 天")
+    }
+}
+
+/// 提示音选项：选中时番茄红，未选中时白底
+private struct SoundChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(Theme.font(12, .semibold))
+                .foregroundStyle(isSelected ? .white : Theme.ink)
+                .padding(.horizontal, 10)
+                .frame(height: Theme.smallControlSize)
+                .background(Capsule().fill(isSelected ? Theme.tomato : .white))
+                .overlay(Capsule().strokeBorder(isSelected ? .clear : Theme.creamDeep, lineWidth: 1.5))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
