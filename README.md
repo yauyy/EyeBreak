@@ -18,13 +18,23 @@ xattr -dr com.apple.quarantine /Applications/EyeBreak.app
 
 ## 使用流程
 
-1. 点菜单栏 👁 →「开始」，进入专注倒计时（默认 20 分钟）
-2. 时间到：播放提示音，右上角弹出**常驻提醒面板**；番茄计时暂停，**不会重复提醒**
-3. 点面板上的「开始休息」，进入眺望休息倒计时（默认 20 秒）
-4. 休息结束：撒花动画 + 提示音，自动开始下一轮专注
-5. 不想休息可以点「跳过本次」，休息中也可以「提前结束」，两者都会直接开始下一轮
+1. 点菜单栏的番茄仔 →「开始」，进入专注倒计时（默认 20 分钟）
+2. 时间到：播放提示音，鼠标所在屏幕的右上角弹出**常驻提醒面板**；番茄计时暂停，**不会重复提醒**
+3. 点「开始休息」，跟着番茄仔做护眼小动作（默认 20 秒）：看看远处、眨眨眼、闭眼放松、转转眼球，每次轮换
+4. 休息结束：撒花庆祝，收集一个番茄 🍅，自动开始下一轮专注
+5. 不方便马上休息可以点「5 分钟后」；也可以「跳过这次」，休息中可以「提前结束」
 
-专注时长（1–180 分钟）和休息时长（5–600 秒）都能在菜单面板里调整，退出后会记住。
+菜单栏的番茄仔会跟着状态换表情。菜单里能看到今天收集的番茄和连续天数。
+
+**省心的自动处理**
+- **离开电脑**：超过 5 分钟没有键鼠操作就暂停，回来后开始新一轮（离开期间眼睛已经休息过了）
+- **开会时**：麦克风被会议软件占用时，到点先不提醒，会议结束再提醒
+- **退出或重启**：会记住计时状态，重新打开后接着来
+- **合盖睡眠**：短暂睡眠后接着计时，睡了很久则开始新一轮
+
+**可调整的设置**：专注时长（5–180 分钟）、眺望时长（5–600 秒）、提示音（可关闭）、开机自启。
+
+系统开了「减少动态效果」时，撒花和番茄仔的动作会自动关闭。
 
 - Swift + SwiftUI + AppKit，原生 `MenuBarExtra`，不显示 Dock 图标
 - 支持 macOS 13.0 及以上
@@ -49,7 +59,12 @@ xattr -dr com.apple.quarantine /Applications/EyeBreak.app
 3. 勾选已预置的 `-EyeBreakTestInterval 10`
 4. `⌘R` 运行，面板里会出现橙色「测试模式：专注 10 秒」
 
-另一个 Debug 参数 `-EyeBreakAutoStart YES` 会让 App 启动后自动开始计时，不用手动点「开始」。
+其他 Debug 参数（只在 Debug 构建中生效）：
+
+| 参数 | 作用 |
+|---|---|
+| `-EyeBreakAutoStart YES` | 启动后自动开始计时，不用手动点「开始」 |
+| `-EyeBreakTestAway 10` | 把「离开电脑」的判定时间从 5 分钟缩短为 10 秒 |
 
 该参数**只在 Debug 构建中生效**，Release 构建永远是 20 分钟。测完记得取消勾选。
 
@@ -113,16 +128,25 @@ gh release create v1.1 dist/EyeBreak-1.1.dmg --title "EyeBreak 1.1" --generate-n
 ```
 EyeBreak/
 ├── EyeBreakApp.swift          应用入口、MenuBarExtra、AppDelegate（生命周期）
-├── EyeBreakModel.swift        状态机：专注 → 等待休息 → 休息 → 专注，含暂停、睡眠唤醒、防重复触发
-├── ReminderSounds.swift       提醒与休息完成的提示音
-├── Theme.swift                Q 版配色、圆体字、胶囊按钮、圆环等界面组件
+├── EyeBreakModel.swift        状态机：专注 → 等待休息 → 休息 → 专注，含暂停、离开、会议推迟、
+│                              稍后提醒、睡眠唤醒、状态保存与恢复、防重复触发
+├── EyeBreakConfig.swift       设置与状态的读写（含 Debug 测试参数）
 ├── BreakPanel.swift           常驻提醒悬浮面板：提醒 / 休息倒计时 / 庆祝
+├── MenuContentView.swift      菜单栏弹出面板与设置
+├── Theme.swift                Q 版配色、圆体字、圆角规范、胶囊按钮、圆环、开关等界面组件
+├── TomatoCharacter.swift      SwiftUI 绘制的会动的番茄仔
+├── RestExercise.swift         轮换的护眼小动作
+├── TomatoStats.swift          番茄收集：每日数量与连续天数
+├── ReminderSounds.swift       提示音与可选音效
+├── SystemIdle.swift           读取键鼠空闲时间（判断是否离开）
+├── MeetingDetector.swift      读取麦克风是否被占用（判断是否开会）
+├── LaunchAtLogin.swift        开机自启（SMAppService）
 ├── ConfettiView.swift         撒花动画（SwiftUI Canvas + TimelineView）
-├── MenuContentView.swift      菜单栏弹出面板与时长设置
-├── EyeBreakConfig.swift       时长设置的读写（含 Debug 测试参数）
-└── Assets.xcassets/AppIcon    应用图标（A 番茄仔，16–1024px）
+└── Assets.xcassets            应用图标、番茄仔角色图、菜单栏表情图标
 EyeBreakTests/
-└── EyeBreakModelTests.swift   计时逻辑单元测试（注入假时钟，毫秒级跑完）
+├── EyeBreakModelTests.swift   计时状态机单元测试（注入假时钟、空闲时间、会议状态，毫秒级跑完）
+├── TomatoStatsTests.swift     番茄收集统计
+└── ReminderSoundsTests.swift  提示音设置
 Design/
 ├── icons/                     初版 SVG 图标方案（6 套，备选）
 └── icons-canvas/              Q 版 Canvas 图标方案（6 套）
@@ -151,9 +175,11 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory Design
 - **基于截止时间计时**：记录「本轮几点结束」，每秒用 `截止时间 - 当前时间` 计算剩余时间，而不是每秒减 1。Timer 回调被系统延迟也不会累计误差。
 - **单一计时器**：每次创建 Timer 前先销毁旧的；「开始」在已运行时直接忽略，连点不会叠加。
 - **状态机**：`idle → working ⇄ paused`，专注到点进入 `awaitingBreak`，点「开始休息」进入 `resting`，休息结束回到 `working`。
-- **防重复提醒**：专注到点时先切到「等待休息」并停表，再投递提醒；用户不操作就一直停在这个状态，同一个提醒不会反复触发。
+- **防重复提醒**：专注到点时先切到「等待休息」并清掉截止时间，再投递提醒；用户不操作就一直停在这个状态，同一个提醒不会反复触发。
+- **离开与会议**：空闲时间用 `CGEventSource` 读取，会议用 CoreAudio 的「设备是否在别处运行」判断，都只读系统状态，不需要辅助功能、麦克风等权限。摄像头不检测，因为沙盒里读取摄像头状态需要声明摄像头权限。
+- **圆角规范**：同心圆角，外层圆角 = 内层圆角 + 间距（按钮 20、卡片 24、面板 34），统一使用 continuous 超椭圆曲线，见 `Theme.Radius`。
 - **常驻提醒**：系统通知横幅会自动收起，App 无法强制它常驻，所以用一个不抢焦点的悬浮面板（`NSPanel`，在所有桌面和全屏应用上方都能看到）代替系统通知，直到用户操作才会消失。也因此 App 不需要申请通知权限。
-- **睡眠/唤醒**：监听 `NSWorkspace.willSleepNotification` / `didWakeNotification`。专注中睡眠 → 暂停，唤醒后从原处继续；已暂停 → 唤醒后仍暂停；等待休息或休息中睡眠 → 睡眠算作休息，唤醒后直接开始新一轮专注（不撒花）。
+- **睡眠/唤醒**：监听 `NSWorkspace.willSleepNotification` / `didWakeNotification`。专注中短暂睡眠 → 唤醒后从原处继续；睡眠超过 5 分钟 → 算作休息，开始新一轮；已暂停 → 唤醒后仍暂停。
 - **计时与界面解耦**：模型由 `AppDelegate` 持有，关闭面板不影响计时。
 
 ## 四、验收对照（PRD 第 8 节，TC-07 已按新流程调整）
@@ -180,5 +206,6 @@ log stream --predicate 'subsystem == "EyeBreak"' --level info
 ## 五、常见问题
 
 - **菜单栏找不到图标**：菜单栏图标太多时会被刘海或其他图标挤掉，可以按住 `⌘` 拖动整理图标，或退出几个其他菜单栏应用。
-- **到点没看到提醒面板**：面板出现在主屏幕右上角；多显示器时请留意当前主屏幕。
+- **到点没看到提醒面板**：面板出现在鼠标所在屏幕的右上角。如果正在开会（麦克风被占用），提醒会等会议结束再出现。
+- **开机自启没生效**：如果菜单里提示「需要在系统设置里允许」，点「去设置」，在「通用 → 登录项」里打开 EyeBreak。建议先把 App 放进「应用程序」文件夹再开启。
 - **想换 Bundle ID**：在 Xcode 的 Target → Signing & Capabilities 中修改（当前为 `com.yau.EyeBreak`）。修改后系统会视为新应用，之前保存的时长设置不会带过去。
