@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 @main
 struct EyeBreakApp: App {
@@ -39,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !EyeBreakConfig.isRunningTests else { return }
         breakPanel = BreakPanelController(model: model)
         if EyeBreakConfig.autoStart { model.start() }
+        #if DEBUG
+        Logger(subsystem: "EyeBreak", category: "debug")
+            .notice("Idle seconds at launch: \(SystemIdle.seconds(), format: .fixed(precision: 1)), away threshold: \(EyeBreakConfig.awayThreshold)")
+        #endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -60,7 +65,7 @@ private struct MenuBarLabel: View {
         case .working: return "MenuBarWorking"
         case .awaitingBreak: return "MenuBarAwaiting"
         case .resting: return "MenuBarResting"
-        case .idle, .paused: return "MenuBarIdle"
+        case .idle, .paused, .away: return "MenuBarIdle"
         }
     }
 
@@ -77,6 +82,7 @@ private struct MenuBarLabel: View {
         case .working: return "EyeBreak 专注中"
         case .awaitingBreak: return "EyeBreak 等待休息"
         case .resting: return "EyeBreak 休息中"
+        case .away: return "EyeBreak 离开中"
         case .idle, .paused: return "EyeBreak 未在计时"
         }
     }

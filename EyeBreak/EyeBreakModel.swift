@@ -2,12 +2,12 @@ import AppKit
 import Combine
 import os
 
-/// 提醒的投递方（提示音 + 系统通知）。抽成协议便于单元测试替换。
+/// 提醒的投递方（提示音）。抽成协议便于单元测试替换。
 @MainActor
 protocol ReminderDelivering: AnyObject {
-    /// 专注结束：播放提示音并发送带「开始休息」按钮的系统通知
+    /// 专注结束：播放提醒音
     func deliverReminder(restDuration: TimeInterval)
-    /// 撤销尚未展示的提醒，并收起已展示的那条（用户已经开始休息/跳过/退出）
+    /// 停止正在播放的提醒（用户已经开始休息/跳过/离开/退出）
     func cancelPendingReminders()
     /// 休息完成的提示音
     func playBreakComplete()
@@ -26,6 +26,8 @@ final class EyeBreakModel: ObservableObject {
         case awaitingBreak
         /// 休息倒计时中
         case resting
+        /// 长时间没有键鼠操作，判定用户离开电脑；计时冻结，回来后开始新一轮
+        case away
     }
 
     @Published private(set) var phase: Phase = .idle
@@ -41,6 +43,10 @@ final class EyeBreakModel: ObservableObject {
 
     private let reminder: ReminderDelivering
     private let now: () -> Date
+    /// 距离上次键盘鼠标操作过去的秒数
+    private let idleTime: () -> TimeInterval
+    /// 无操作超过这个时长判定为离开；睡眠超过这个时长也视为已经休息过
+    private let awayThreshold: TimeInterval
     private let usesSystemTimer: Bool
     private let logger = Logger(subsystem: "EyeBreak", category: "timer")
 
@@ -55,6 +61,7 @@ final class EyeBreakModel: ObservableObject {
     private var resumeAfterWake = false
     /// 睡眠前处于等待休息/休息中：睡眠期间眼睛已离开屏幕，唤醒后直接开始新一轮专注。
     private var newRoundAfterWake = false
+    private var sleepStartedAt: Date?
     private var observers: [NSObjectProtocol] = []
 
     init(
@@ -62,12 +69,16 @@ final class EyeBreakModel: ObservableObject {
         restDuration: TimeInterval,
         reminder: ReminderDelivering,
         now: @escaping () -> Date = Date.init,
+        idleTime: @escaping () -> TimeInterval = SystemIdle.seconds,
+        awayThreshold: TimeInterval = EyeBreakConfig.awayThreshold,
         usesSystemTimer: Bool = true
     ) {
         self.workInterval = workInterval
         self.restDuration = restDuration
         self.reminder = reminder
         self.now = now
+        self.idleTime = idleTime
+        self.awayThreshold = awayThreshold
         self.usesSystemTimer = usesSystemTimer
         pausedRemaining = workInterval
         remainingSeconds = Self.displaySeconds(workInterval)
@@ -93,7 +104,7 @@ final class EyeBreakModel: ObservableObject {
     /// 开始 / 继续专注。仅在未开始或暂停时有效，因此连续点击不会产生并行计时。
     func start() {
         switch phase {
-        case .idle: beginWorking(remaining: workInterval)
+        case .idle, .away: beginWorking(remaining: workInterval)
         case .paused: beginWorking(remaining: pausedRemaining)
         case .working, .awaitingBreak, .resting: return
         }
@@ -167,16 +178,30 @@ final class EyeBreakModel: ObservableObject {
     // MARK: - 计时
 
     func tick() {
+        switch phase {
+        case .working, .awaitingBreak:
+            // 休息中不检测：眺望时本来就不碰键鼠
+            if idleTime() >= awayThreshold {
+                enterAway()
+                return
+            }
+        case .away:
+            if idleTime() < Self.returnThreshold { returnFromAway() }
+            return
+        case .idle, .paused, .resting:
+            break
+        }
+
         guard let deadline, now() >= deadline else {
             updateDisplay()
             return
         }
         switch phase {
         case .working:
-            // 先把状态切到"等待休息"并停表，再投递提醒：同一轮只可能触发一次，
+            // 先把状态切到"等待休息"并清掉截止时间，再投递提醒：同一轮只可能触发一次，
             // 用户不点「开始休息」时计时保持冻结，也就不会反复提醒。
+            // 计时器继续运行，只用于检测用户是否离开。
             self.deadline = nil
-            stopTicker()
             phase = .awaitingBreak
             updateDisplay()
             logger.notice("Work round finished, awaiting break")
@@ -186,9 +211,25 @@ final class EyeBreakModel: ObservableObject {
             reminder.playBreakComplete()
             breakCompleted.send()
             beginWorking(remaining: workInterval)
-        case .idle, .paused, .awaitingBreak:
+        case .idle, .paused, .awaitingBreak, .away:
             updateDisplay()
         }
+    }
+
+    /// 回来的判定：最近几秒内有键鼠操作
+    private static let returnThreshold: TimeInterval = 3
+
+    private func enterAway() {
+        logger.notice("No input for a while, user is away")
+        deadline = nil
+        reminder.cancelPendingReminders()
+        phase = .away
+        updateDisplay()
+    }
+
+    private func returnFromAway() {
+        logger.notice("User is back, starting a new round")
+        beginWorking(remaining: workInterval)
     }
 
     private func beginWorking(remaining: TimeInterval) {
@@ -206,7 +247,7 @@ final class EyeBreakModel: ObservableObject {
     private func updateDisplay() {
         let seconds: TimeInterval
         switch phase {
-        case .idle: seconds = workInterval
+        case .idle, .away: seconds = workInterval
         case .working, .resting: seconds = currentRemaining()
         case .paused: seconds = pausedRemaining
         case .awaitingBreak: seconds = restDuration
@@ -240,6 +281,7 @@ final class EyeBreakModel: ObservableObject {
     // MARK: - 睡眠与唤醒
 
     func systemWillSleep() {
+        sleepStartedAt = now()
         switch phase {
         case .working:
             logger.notice("System will sleep, pausing work with \(self.currentRemaining(), format: .fixed(precision: 1))s left")
@@ -250,16 +292,24 @@ final class EyeBreakModel: ObservableObject {
             stopTicker()
             deadline = nil
             newRoundAfterWake = true
-        case .idle, .paused:
+        case .idle, .paused, .away:
             break
         }
     }
 
     func systemDidWake() {
+        let sleptLong = sleepStartedAt.map { now().timeIntervalSince($0) >= awayThreshold } ?? false
+        sleepStartedAt = nil
         if resumeAfterWake {
             resumeAfterWake = false
-            logger.notice("System did wake, resuming work")
-            start()
+            if sleptLong {
+                // 睡了很久，眼睛已经休息过，直接开始新一轮
+                logger.notice("System did wake after a long sleep, starting a new round")
+                beginWorking(remaining: workInterval)
+            } else {
+                logger.notice("System did wake, resuming work")
+                start()
+            }
         } else if newRoundAfterWake {
             newRoundAfterWake = false
             logger.notice("System did wake after break, starting a new round")

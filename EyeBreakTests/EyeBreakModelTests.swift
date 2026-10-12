@@ -16,6 +16,8 @@ private final class SpyReminder: ReminderDelivering {
 @MainActor
 private final class FakeClock {
     var now = Date(timeIntervalSince1970: 1_000_000)
+    /// 模拟距离上次键鼠操作的秒数，默认一直在操作
+    var idle: TimeInterval = 0
     func advance(_ seconds: TimeInterval) { now += seconds }
 }
 
@@ -27,7 +29,11 @@ struct EyeBreakModelTests {
 
     init() {
         let clock = clock
-        model = EyeBreakModel(workInterval: 20 * 60, restDuration: 20, reminder: spy, now: { clock.now }, usesSystemTimer: false)
+        model = EyeBreakModel(
+            workInterval: 20 * 60, restDuration: 20, reminder: spy,
+            now: { clock.now }, idleTime: { clock.idle }, awayThreshold: 5 * 60,
+            usesSystemTimer: false
+        )
     }
 
     private func advance(_ seconds: TimeInterval) {
@@ -248,19 +254,112 @@ struct EyeBreakModelTests {
 
     // MARK: - 睡眠与退出
 
-    @Test("TC-10/11 专注中睡眠：暂停并保存，唤醒后从原剩余时间继续，不补发提醒")
-    func sleepWhileWorking() {
+    @Test("TC-10/11 专注中短暂睡眠：暂停并保存，唤醒后从原剩余时间继续，不补发提醒")
+    func shortSleepWhileWorking() {
         model.start()
         advance(100)
         model.systemWillSleep()
         #expect(model.phase == .paused)
 
-        clock.advance(8 * 3600)
+        clock.advance(60)
         model.systemDidWake()
         #expect(model.phase == .working)
         model.tick()
         #expect(model.formattedRemaining == "18:20")
         #expect(spy.delivered.isEmpty)
+    }
+
+    @Test("专注中长时间睡眠：睡眠算作休息，唤醒后开始新一轮完整专注")
+    func longSleepWhileWorking() {
+        model.start()
+        advance(100)
+        model.systemWillSleep()
+        clock.advance(8 * 3600)
+        model.systemDidWake()
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+        #expect(spy.delivered.isEmpty)
+    }
+
+    // MARK: - 离开电脑
+
+    @Test("专注中超过 5 分钟没有操作：进入离开状态，计时冻结、不提醒")
+    func goesAwayWhileWorking() {
+        model.start()
+        advance(60)
+        clock.idle = 5 * 60
+        advance(1)
+        #expect(model.phase == .away)
+        #expect(model.formattedRemaining == "20:00")
+
+        // 离开期间即使过了专注时长也不会提醒
+        advance(3600)
+        #expect(model.phase == .away)
+        #expect(spy.delivered.isEmpty)
+    }
+
+    @Test("离开后回来：开始新一轮完整专注")
+    func returnsFromAway() {
+        model.start()
+        clock.idle = 10 * 60
+        advance(1)
+        #expect(model.phase == .away)
+
+        clock.idle = 1
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+    }
+
+    @Test("没超过 5 分钟的短暂无操作不算离开")
+    func shortIdleIsNotAway() {
+        model.start()
+        clock.idle = 4 * 60
+        advance(30)
+        #expect(model.phase == .working)
+    }
+
+    @Test("等待休息时离开：离开算作休息过，回来后开始新一轮")
+    func goesAwayWhileAwaitingBreak() {
+        finishWorkRound()
+        #expect(model.phase == .awaitingBreak)
+        clock.idle = 6 * 60
+        advance(1)
+        #expect(model.phase == .away)
+
+        clock.idle = 0
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("休息中长时间不操作不算离开（眺望时本来就不碰键鼠）")
+    func restingIgnoresIdle() {
+        model.setRestDuration(600)
+        finishWorkRound()
+        model.startBreak()
+        clock.idle = 9 * 60
+        advance(9 * 60)
+        #expect(model.phase == .resting)
+    }
+
+    @Test("暂停中长时间不操作，保持暂停")
+    func pausedIgnoresIdle() {
+        model.start()
+        model.pause()
+        clock.idle = 3600
+        advance(3600)
+        #expect(model.phase == .paused)
+    }
+
+    @Test("离开中点开始：立即开始新一轮")
+    func startWhileAway() {
+        model.start()
+        clock.idle = 3600
+        advance(1)
+        model.start()
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
     }
 
     @Test("TC-11 暂停中睡眠：唤醒后仍保持暂停")

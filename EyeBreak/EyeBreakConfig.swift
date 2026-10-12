@@ -5,6 +5,15 @@ enum EyeBreakConfig {
     static let defaultRestSeconds = 20
     static let workMinutesRange = 5...180
     static let restSecondsRange = 5...600
+    /// 超过这么久没有键鼠操作，判定为离开电脑（默认 5 分钟）。
+    /// 仅 Debug 构建可用 `-EyeBreakTestAway 10` 缩短为秒级，便于手动测试。
+    static var awayThreshold: TimeInterval {
+        #if DEBUG
+        let override = UserDefaults.standard.double(forKey: "EyeBreakTestAway")
+        if override >= 1 { return override }
+        #endif
+        return 5 * 60
+    }
 
     private static let workMinutesKey = "workMinutes"
     private static let restSecondsKey = "restSeconds"

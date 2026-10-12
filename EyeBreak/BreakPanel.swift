@@ -39,7 +39,7 @@ final class BreakPanelController {
         case .awaitingBreak, .resting:
             cancelCelebration()
             show()
-        case .idle, .working, .paused:
+        case .idle, .working, .paused, .away:
             // 休息自然结束时 breakCompleted 先于阶段切换发出，此时正在撒花，稍后再收起
             if !state.celebrating { hide() }
         }

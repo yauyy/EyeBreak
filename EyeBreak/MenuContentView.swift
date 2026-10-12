@@ -57,6 +57,7 @@ struct MenuContentView: View {
         case .paused: return "已暂停"
         case .awaitingBreak: return "该休息啦"
         case .resting: return "休息中"
+        case .away: return "离开中"
         }
     }
 
@@ -64,18 +65,18 @@ struct MenuContentView: View {
         switch model.phase {
         case .working, .awaitingBreak: return Theme.tomato
         case .resting: return Theme.leaf
-        case .idle, .paused: return Theme.tomatoSoft
+        case .idle, .paused, .away: return Theme.tomatoSoft
         }
     }
 
     private var statusColor: Color {
-        model.phase == .idle || model.phase == .paused ? Theme.inkSoft : phaseColor
+        [.idle, .paused, .away].contains(model.phase) ? Theme.inkSoft : phaseColor
     }
 
     private var controls: some View {
         HStack(spacing: 10) {
             switch model.phase {
-            case .idle:
+            case .idle, .away:
                 Button("开始", action: model.start)
                     .buttonStyle(PillButtonStyle())
                     .keyboardShortcut(.defaultAction)
