@@ -1,0 +1,76 @@
+# 推送 v* 标签时：跑测试 → 打包 DMG → 创建（或更新）同名 Release 并上传 DMG
+# 在 Actions 页面手动运行时：只打包，DMG 作为构建产物保存，不发布 Release
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project EyeBreak.xcodeproj \
+            -scheme EyeBreak \
+            -destination 'platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY=- \
+            -quiet
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            # 手动运行：沿用工程里的版本号
+            echo "value=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build DMG
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: ./scripts/package.sh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EyeBreak-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DMG=$(ls dist/*.dmg)
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$DMG" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$DMG" \
+              --title "EyeBreak ${GITHUB_REF_NAME#v}" \
+              --notes-file .github/release-notes.md \
+              --generate-notes \
+              --verify-tag
+          fi

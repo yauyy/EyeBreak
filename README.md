@@ -93,6 +93,16 @@ open build/Build/Products/Debug/EyeBreak.app --args -EyeBreakTestInterval 10 -Ey
 ./scripts/package.sh
 ```
 
+### 发布新版本
+
+推送 `v` 开头的标签，GitHub Actions（[.github/workflows/release.yml](.github/workflows/release.yml)）会自动跑测试、按标签号设置版本、打包 DMG，并创建 Release 上传安装包：
+
+```bash
+git tag v1.1 && git push origin v1.1
+```
+
+Release 说明由「安装步骤」（[.github/release-notes.md](.github/release-notes.md)）加上自动生成的提交列表组成。只想试跑打包、不发布的话，在仓库的 Actions 页面选 Release → Run workflow，DMG 会作为构建产物保存。
+
 ## 三、项目结构
 
 ```
