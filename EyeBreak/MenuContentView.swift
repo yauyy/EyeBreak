@@ -3,11 +3,15 @@ import SwiftUI
 struct MenuContentView: View {
     @ObservedObject var model: EyeBreakModel
     @ObservedObject var launchAtLogin: LaunchAtLogin
+    @ObservedObject var stats: TomatoStats
 
     var body: some View {
         VStack(spacing: 18) {
             header
-            ring
+            VStack(spacing: 10) {
+                ring
+                TomatoTally(today: stats.today, streak: stats.streak)
+            }
             controls
             settings
         }
@@ -16,7 +20,10 @@ struct MenuContentView: View {
         .background(Theme.cream)
         .environment(\.colorScheme, .light)
         // 用户可能在系统设置里改过登录项
-        .onAppear { launchAtLogin.refresh() }
+        .onAppear {
+            launchAtLogin.refresh()
+            stats.refresh()
+        }
     }
 
     private var header: some View {
@@ -137,5 +144,44 @@ struct MenuContentView: View {
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
+    }
+}
+
+/// 今日收集的番茄：最多画 8 个小番茄，多出来的用 +N 表示
+private struct TomatoTally: View {
+    let today: Int
+    let streak: Int
+    private let maxIcons = 8
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if today == 0 {
+                Text("休息一次，收集今天的第一个番茄")
+                    .font(Theme.font(12))
+                    .foregroundStyle(Theme.inkSoft)
+            } else {
+                HStack(spacing: -3) {
+                    ForEach(0..<min(today, maxIcons), id: \.self) { _ in
+                        TomatoAvatar(size: 18)
+                    }
+                }
+                if today > maxIcons {
+                    Text("+\(today - maxIcons)")
+                        .font(Theme.font(12, .semibold))
+                        .foregroundStyle(Theme.tomato)
+                }
+            }
+            if streak > 1 {
+                Text("连续 \(streak) 天")
+                    .font(Theme.font(12, .semibold))
+                    .foregroundStyle(Theme.leaf)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.leaf.opacity(0.12)))
+            }
+        }
+        .frame(height: 20)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("今天收集了 \(today) 个番茄，连续 \(streak) 天")
     }
 }

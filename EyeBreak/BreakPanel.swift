@@ -14,13 +14,15 @@ final class BreakPanelController {
     private static let celebrationDuration: UInt64 = 2_800_000_000
 
     private let model: EyeBreakModel
+    private let stats: TomatoStats
     private let state = State()
     private var panel: NSPanel?
     private var cancellables: Set<AnyCancellable> = []
     private var celebrationTask: Task<Void, Never>?
 
-    init(model: EyeBreakModel) {
+    init(model: EyeBreakModel, stats: TomatoStats) {
         self.model = model
+        self.stats = stats
         model.$phase
             .removeDuplicates()
             .sink { [weak self] phase in
@@ -114,7 +116,7 @@ final class BreakPanelController {
         panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = true
-        panel.contentView = NSHostingView(rootView: BreakPanelView(model: model, state: state))
+        panel.contentView = NSHostingView(rootView: BreakPanelView(model: model, state: state, stats: stats))
         return panel
     }
 }
@@ -127,6 +129,7 @@ private final class FloatingPanel: NSPanel {
 private struct BreakPanelView: View {
     @ObservedObject var model: EyeBreakModel
     @ObservedObject var state: BreakPanelController.State
+    @ObservedObject var stats: TomatoStats
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -135,7 +138,7 @@ private struct BreakPanelView: View {
 
             Group {
                 if state.celebrating {
-                    CelebrationContent()
+                    CelebrationContent(todayCount: stats.today)
                 } else if model.phase == .resting {
                     resting
                 } else {
@@ -237,6 +240,7 @@ private struct BobbingTomato: View {
 
 /// 休息完成：番茄仔弹出来 + 一句话
 private struct CelebrationContent: View {
+    var todayCount: Int
     @State private var popped = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -248,6 +252,9 @@ private struct CelebrationContent: View {
             Text("休息完成！")
                 .font(Theme.font(22, .bold))
                 .foregroundStyle(Theme.ink)
+            Text("今天第 \(todayCount) 个番茄")
+                .font(Theme.font(13, .medium))
+                .foregroundStyle(Theme.tomato)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {

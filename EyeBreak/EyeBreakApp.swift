@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import os
 
@@ -7,7 +8,7 @@ struct EyeBreakApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin)
+            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin, stats: appDelegate.stats)
         } label: {
             MenuBarLabel(model: appDelegate.model)
         }
@@ -21,7 +22,9 @@ struct EyeBreakApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model: EyeBreakModel
     let launchAtLogin = LaunchAtLogin()
+    let stats = TomatoStats()
     private var breakPanel: BreakPanelController?
+    private var cancellables: Set<AnyCancellable> = []
 
     override init() {
         let model = EyeBreakModel(
@@ -39,7 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 单元测试以本 App 为宿主运行，不要在测试中弹出面板
         guard !EyeBreakConfig.isRunningTests else { return }
-        breakPanel = BreakPanelController(model: model)
+        // 先记账再创建面板：两者都订阅 breakCompleted，按订阅顺序收到，庆祝画面才能显示最新数量
+        model.breakCompleted
+            .sink { [stats] in MainActor.assumeIsolated { stats.recordBreak() } }
+            .store(in: &cancellables)
+        breakPanel = BreakPanelController(model: model, stats: stats)
         if EyeBreakConfig.autoStart {
             model.start()
         } else if let snapshot = EyeBreakConfig.loadSnapshot() {
