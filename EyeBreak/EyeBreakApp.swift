@@ -78,9 +78,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 private struct MenuBarLabel: View {
     @ObservedObject var model: EyeBreakModel
+    @AppStorage(EyeBreakConfig.showMenuBarTimeKey) private var showTime = false
 
     var body: some View {
-        Image(nsImage: Self.icon(named: assetName))
+        Image(nsImage: MenuBarIcon.compose(icon: NSImage(named: assetName) ?? NSImage(), text: showTime ? model.menuBarText : nil))
             .accessibilityLabel(accessibility)
     }
 
@@ -94,21 +95,18 @@ private struct MenuBarLabel: View {
         }
     }
 
-    /// 模板图：系统按菜单栏的深浅自动着色，与其他菜单栏图标保持一致
-    private static func icon(named name: String) -> NSImage {
-        let image = NSImage(named: name) ?? NSImage()
-        image.isTemplate = true
-        image.size = NSSize(width: 18, height: 18)
-        return image
-    }
-
     private var accessibility: String {
+        let state: String
         switch model.phase {
-        case .working: return "EyeBreak 专注中"
-        case .awaitingBreak: return "EyeBreak 等待休息"
-        case .resting: return "EyeBreak 休息中"
-        case .away: return "EyeBreak 离开中"
-        case .idle, .paused: return "EyeBreak 未在计时"
+        case .working: state = "专注中"
+        case .awaitingBreak: state = "等待休息"
+        case .resting: state = "休息中"
+        case .away: state = "离开中"
+        case .idle, .paused: state = "未在计时"
         }
+        if let text = model.menuBarText, model.phase != .awaitingBreak {
+            return "EyeBreak \(state)，剩余 \(text)"
+        }
+        return "EyeBreak \(state)"
     }
 }

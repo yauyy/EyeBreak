@@ -113,6 +113,9 @@ struct MenuContentView: View {
         }
     }
 
+    @AppStorage(EyeBreakConfig.showMoreSettingsKey) private var showMoreSettings = false
+    @AppStorage(EyeBreakConfig.showMenuBarTimeKey) private var showMenuBarTime = false
+
     private var settings: some View {
         VStack(spacing: 10) {
             CuteStepper(
@@ -131,43 +134,70 @@ struct MenuContentView: View {
                 ),
                 range: EyeBreakConfig.restSecondsRange, step: 5
             )
-            VStack(alignment: .leading, spacing: 8) {
-                Text("提示音")
-                    .font(Theme.font(14, .medium))
-                    .foregroundStyle(Theme.ink)
-                SoundPicker(selection: sounds.choice) { option in
-                    sounds.choice = option
-                    sounds.preview(option)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Toggle(isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) })) {
-                Text("开机自启")
-                    .font(Theme.font(14, .medium))
-                    .foregroundStyle(Theme.ink)
-            }
-            .toggleStyle(CuteToggleStyle())
-            if updates.isConfigured {
-                Toggle(isOn: $updates.automaticChecks) {
-                    Text("自动检查更新")
-                        .font(Theme.font(14, .medium))
-                        .foregroundStyle(Theme.ink)
-                }
-                .toggleStyle(CuteToggleStyle())
-            }
-            if launchAtLogin.needsApproval || launchAtLogin.failed {
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { showMoreSettings.toggle() }
+            } label: {
                 HStack {
-                    Text(launchAtLogin.failed ? "设置失败，可在系统设置里手动添加" : "需要在系统设置里允许")
-                        .font(Theme.font(12))
+                    Text("更多设置")
+                        .font(Theme.font(13, .medium))
                         .foregroundStyle(Theme.inkSoft)
                     Spacer()
-                    Button("去设置", action: launchAtLogin.openLoginItemsSettings)
-                        .buttonStyle(PillButtonStyle(kind: .plain))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.inkSoft)
+                        .rotationEffect(.degrees(showMoreSettings ? 180 : 0))
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
+
+            if showMoreSettings {
+                moreSettings
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(Theme.Spacing.card)
         .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
+    }
+
+    @ViewBuilder
+    private var moreSettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            settingTitle("提示音")
+            SoundPicker(selection: sounds.choice) { option in
+                sounds.choice = option
+                sounds.preview(option)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        Toggle(isOn: $showMenuBarTime) { settingTitle("菜单栏显示倒计时") }
+            .toggleStyle(CuteToggleStyle())
+        Toggle(isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) })) {
+            settingTitle("开机自启")
+        }
+        .toggleStyle(CuteToggleStyle())
+        if launchAtLogin.needsApproval || launchAtLogin.failed {
+            HStack {
+                Text(launchAtLogin.failed ? "设置失败，可在系统设置里手动添加" : "需要在系统设置里允许")
+                    .font(Theme.font(12))
+                    .foregroundStyle(Theme.inkSoft)
+                Spacer()
+                Button("去设置", action: launchAtLogin.openLoginItemsSettings)
+                    .buttonStyle(PillButtonStyle(kind: .plain))
+            }
+        }
+        if updates.isConfigured {
+            Toggle(isOn: $updates.automaticChecks) { settingTitle("自动检查更新") }
+                .toggleStyle(CuteToggleStyle())
+        }
+    }
+
+    private func settingTitle(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.font(14, .medium))
+            .foregroundStyle(Theme.ink)
     }
 }
 

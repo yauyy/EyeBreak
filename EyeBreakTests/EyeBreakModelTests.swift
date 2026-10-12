@@ -111,6 +111,32 @@ struct EyeBreakModelTests {
         #expect(model.formattedRemaining == "18:20")
     }
 
+    // MARK: - 菜单栏文字
+
+    @Test("菜单栏文字：专注、暂停、休息时显示紧凑的剩余时间，等待休息时显示「休息」")
+    func menuBarText() {
+        #expect(model.menuBarText == nil)
+        model.start()
+        advance(15 * 60)
+        #expect(model.menuBarText == "5:00")
+        model.pause()
+        #expect(model.menuBarText == "5:00")
+        model.start()
+        advance(5 * 60)
+        #expect(model.menuBarText == "休息")
+        model.startBreak()
+        advance(8)
+        #expect(model.menuBarText == "0:12")
+    }
+
+    @Test("离开时菜单栏不显示时间")
+    func menuBarTextWhenAway() {
+        model.start()
+        clock.idle = 3600
+        advance(1)
+        #expect(model.menuBarText == nil)
+    }
+
     // MARK: - 提醒与休息
 
     @Test("TC-07 专注结束只提醒一次，进入等待休息并冻结计时")

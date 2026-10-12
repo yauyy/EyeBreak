@@ -45,6 +45,11 @@ enum EyeBreakConfig {
     /// 「稍后提醒」推迟的时长
     static let snoozeInterval: TimeInterval = 5 * 60
 
+    /// 菜单栏是否在番茄仔旁边显示剩余时间（默认关闭）
+    static let showMenuBarTimeKey = "showMenuBarTime"
+    /// 菜单里「更多设置」是否展开
+    static let showMoreSettingsKey = "showMoreSettings"
+
     private static let snapshotKey = "timerSnapshot"
     private static let exerciseIndexKey = "exerciseIndex"
     private static let reminderSoundKey = "reminderSound"

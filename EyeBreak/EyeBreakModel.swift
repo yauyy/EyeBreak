@@ -131,6 +131,16 @@ final class EyeBreakModel: ObservableObject {
         String(format: "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)
     }
 
+    /// 菜单栏上紧凑显示的剩余时间（分钟不补零，如 "5:00"）；未开始和离开时不显示
+    var menuBarText: String? {
+        let compact = String(format: "%d:%02d", remainingSeconds / 60, remainingSeconds % 60)
+        switch phase {
+        case .working, .paused, .resting: return compact
+        case .awaitingBreak: return "休息"
+        case .idle, .away: return nil
+        }
+    }
+
     /// 当前阶段已经过去的比例，0...1
     var progress: Double {
         let total: TimeInterval
