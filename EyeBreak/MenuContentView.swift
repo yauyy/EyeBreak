@@ -5,13 +5,13 @@ struct MenuContentView: View {
     @ObservedObject var launchAtLogin: LaunchAtLogin
     @ObservedObject var stats: TomatoStats
     @ObservedObject var sounds: ReminderSounds
-    @ObservedObject var updates: UpdateChecker
+    @ObservedObject var updates: AppUpdater
 
     var body: some View {
         VStack(spacing: 18) {
             header
-            if let release = updates.available {
-                UpdateBanner(version: release.version, download: updates.openDownloadPage)
+            if let version = updates.availableVersion {
+                UpdateBanner(version: version, update: updates.checkForUpdates)
             }
             VStack(spacing: 10) {
                 ring
@@ -147,12 +147,14 @@ struct MenuContentView: View {
                     .foregroundStyle(Theme.ink)
             }
             .toggleStyle(CuteToggleStyle())
-            Toggle(isOn: $updates.automaticChecks) {
-                Text("自动检查更新")
-                    .font(Theme.font(14, .medium))
-                    .foregroundStyle(Theme.ink)
+            if updates.isConfigured {
+                Toggle(isOn: $updates.automaticChecks) {
+                    Text("自动检查更新")
+                        .font(Theme.font(14, .medium))
+                        .foregroundStyle(Theme.ink)
+                }
+                .toggleStyle(CuteToggleStyle())
             }
-            .toggleStyle(CuteToggleStyle())
             if launchAtLogin.needsApproval || launchAtLogin.failed {
                 HStack {
                     Text(launchAtLogin.failed ? "设置失败，可在系统设置里手动添加" : "需要在系统设置里允许")
@@ -251,7 +253,7 @@ private struct SoundPicker: View {
 /// 有新版本时出现在菜单顶部的提示条
 private struct UpdateBanner: View {
     let version: String
-    let download: () -> Void
+    let update: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
@@ -259,7 +261,7 @@ private struct UpdateBanner: View {
                 .font(Theme.font(13, .semibold))
                 .foregroundStyle(Theme.ink)
             Spacer()
-            Button("下载", action: download)
+            Button("更新", action: update)
                 .buttonStyle(PillButtonStyle())
                 .fixedSize()
         }
@@ -275,7 +277,7 @@ private struct UpdateBanner: View {
 
 /// 菜单底部：当前版本号与手动检查更新
 private struct VersionFooter: View {
-    @ObservedObject var updates: UpdateChecker
+    @ObservedObject var updates: AppUpdater
 
     var body: some View {
         HStack {
@@ -283,20 +285,11 @@ private struct VersionFooter: View {
                 .font(Theme.font(12))
                 .foregroundStyle(Theme.inkSoft)
             Spacer()
-            Button(title) {
-                Task { await updates.check() }
+            if updates.isConfigured {
+                Button("检查更新", action: updates.checkForUpdates)
+                    .buttonStyle(PillButtonStyle(kind: .plain))
+                    .disabled(!updates.canCheckForUpdates)
             }
-            .buttonStyle(PillButtonStyle(kind: .plain))
-            .disabled(updates.status == .checking)
-        }
-    }
-
-    private var title: String {
-        switch updates.status {
-        case .idle: return "检查更新"
-        case .checking: return "检查中…"
-        case .upToDate: return updates.available == nil ? "已是最新版本" : "检查更新"
-        case .failed: return "检查失败，点此重试"
         }
     }
 }

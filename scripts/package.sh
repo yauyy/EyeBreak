@@ -1,20 +1,49 @@
 #!/bin/zsh
-# 编译 Release 版并打包成 DMG（拖进「应用程序」安装），产物在 dist/
-# 可选环境变量：VERSION=1.1 覆盖 App 版本号（默认取工程里的 MARKETING_VERSION）
+# 编译 Release 版，打包成 DMG（拖进「应用程序」安装），并生成 Sparkle 更新源 appcast.xml。产物在 dist/
+#
+# 可选环境变量：
+#   VERSION=1.2               覆盖 App 版本号（默认取工程里的 MARKETING_VERSION）
+#   BUILD=42                  覆盖构建号（默认取 git 提交数，保证每次发布递增；Sparkle 靠它判断新旧）
+#   SPARKLE_KEY_FILE=path     用文件里的私钥签名（默认从钥匙串读取 generate_keys 生成的私钥）
+#   SPARKLE_PUBLIC_KEY=...    覆盖内置公钥（仅用于本机测试）
+#   SPARKLE_FEED_URL=...      覆盖更新源地址（仅用于本机测试）
+#   DOWNLOAD_URL_PREFIX=...   覆盖 appcast 里的下载地址前缀（仅用于本机测试）
+#
+# 更新说明：如果存在 docs/release-notes/<版本号>.md，会嵌入 appcast，显示在 Sparkle 的更新窗口里。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 
-VERSION="${VERSION:-$(xcodebuild -project EyeBreak.xcodeproj -target EyeBreak -configuration Release -showBuildSettings 2>/dev/null \
-  | awk '/ MARKETING_VERSION =/ { print $3 }')}"
+setting() {
+  xcodebuild -project EyeBreak.xcodeproj -target EyeBreak -configuration Release -showBuildSettings 2>/dev/null \
+    | awk -v key="$1" '$1 == key && $2 == "=" { sub(/^[^=]*= /, ""); print; exit }'
+}
+
+VERSION="${VERSION:-$(setting MARKETING_VERSION)}"
+BUILD="${BUILD:-$(git rev-list --count HEAD)}"
+PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-$(setting SPARKLE_PUBLIC_KEY)}"
+FEED_URL="${SPARKLE_FEED_URL:-$(setting SPARKLE_FEED_URL)}"
+DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/yauyy/EyeBreak/releases/download/v$VERSION/}"
+
+if [[ -z "$PUBLIC_KEY" ]]; then
+  echo "错误：工程里还没有配置 SPARKLE_PUBLIC_KEY，打出来的 App 无法自动更新。" >&2
+  echo "先运行 generate_keys 生成密钥，把公钥填进 Xcode 的 SPARKLE_PUBLIC_KEY 构建设置。" >&2
+  exit 1
+fi
+
 APP=build/Build/Products/Release/EyeBreak.app
 DMG=dist/EyeBreak-$VERSION.dmg
 STAGING=build/dmg-staging
+APPCAST_STAGING=build/appcast-staging
+SPARKLE_BIN=build/SourcePackages/artifacts/sparkle/Sparkle/bin
 
-echo "==> Building EyeBreak $VERSION (Release)"
+echo "==> Building EyeBreak $VERSION ($BUILD) (Release)"
 xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -configuration Release -derivedDataPath build \
-  -destination 'generic/platform=macOS' MARKETING_VERSION="$VERSION" build -quiet
+  -destination 'generic/platform=macOS' \
+  MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
+  SPARKLE_PUBLIC_KEY="$PUBLIC_KEY" SPARKLE_FEED_URL="$FEED_URL" \
+  build -quiet
 
 echo "==> Creating $DMG"
 rm -rf "$STAGING" && mkdir -p "$STAGING" dist
@@ -24,4 +53,27 @@ rm -f "$DMG"
 hdiutil create -volname "EyeBreak" -srcfolder "$STAGING" -ov -format UDZO "$DMG" -quiet
 rm -rf "$STAGING"
 
+echo "==> Generating dist/appcast.xml"
+# 每次都重新生成：更新源只需要指向最新版本，也避免旧文件里的条目（例如本机测试的）混进正式发布
+rm -f dist/appcast.xml
+rm -rf "$APPCAST_STAGING" && mkdir -p "$APPCAST_STAGING"
+cp "$DMG" "$APPCAST_STAGING/"
+NOTES="docs/release-notes/$VERSION.md"
+if [[ -f "$NOTES" ]]; then
+  cp "$NOTES" "$APPCAST_STAGING/EyeBreak-$VERSION.md"
+fi
+KEY_ARGS=()
+if [[ -n "${SPARKLE_KEY_FILE:-}" ]]; then
+  KEY_ARGS=(--ed-key-file "$SPARKLE_KEY_FILE")
+fi
+"$SPARKLE_BIN/generate_appcast" "${KEY_ARGS[@]}" \
+  --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
+  --embed-release-notes \
+  --link "https://github.com/yauyy/EyeBreak" \
+  --maximum-deltas 0 \
+  -o "$PWD/dist/appcast.xml" \
+  "$APPCAST_STAGING"
+rm -rf "$APPCAST_STAGING"
+
 shasum -a 256 "$DMG"
+echo "==> 发布时上传这两个文件：$DMG dist/appcast.xml"

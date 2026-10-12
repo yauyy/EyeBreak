@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 声明支持中文，Sparkle 的更新窗口等系统界面会按系统语言显示中文。其余 Info.plist 键由 Xcode 根据构建设置自动生成 -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hans</string>
+		<string>en</string>
+	</array>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
+	<!-- Sparkle 自动更新 -->
+	<key>SUFeedURL</key>
+	<string>$(SPARKLE_FEED_URL)</string>
+	<key>SUPublicEDKey</key>
+	<string>$(SPARKLE_PUBLIC_KEY)</string>
+	<!-- 沙盒应用需要通过 Sparkle 的辅助进程完成安装 -->
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<!-- 默认开启自动检查，不再额外弹窗询问；每天最多一次 -->
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+</dict>
+</plist>

@@ -5,8 +5,18 @@
 	<!-- App 沙盒 -->
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
-	<!-- 只允许主动联网，用于检查更新 -->
+	<!-- 只允许主动联网，用于检查和下载更新 -->
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- 本地临时签名（无开发者团队）的 App 加载内嵌的 Sparkle 框架时，强化运行时的库校验会拒绝加载。
+	     只放宽这一项，强化运行时的其他保护和沙盒都保留 -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<!-- 允许与 Sparkle 的安装辅助进程通信（Sparkle 官方的沙盒配置） -->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
+	</array>
 </dict>
 </plist>
