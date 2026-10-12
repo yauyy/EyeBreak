@@ -95,13 +95,18 @@ open build/Build/Products/Debug/EyeBreak.app --args -EyeBreakTestInterval 10 -Ey
 
 ### 发布新版本
 
-推送 `v` 开头的标签，GitHub Actions（[.github/workflows/release.yml](.github/workflows/release.yml)）会自动跑测试、按标签号设置版本、打包 DMG，并创建 Release 上传安装包：
+1. 在 Xcode 里修改 `MARKETING_VERSION`（Target → General → Version），或打包时用 `VERSION=1.1` 临时指定
+2. 本地打包：
 
 ```bash
-git tag v1.1 && git push origin v1.1
+VERSION=1.1 ./scripts/package.sh
 ```
 
-Release 说明由「安装步骤」（[.github/release-notes.md](.github/release-notes.md)）加上自动生成的提交列表组成。只想试跑打包、不发布的话，在仓库的 Actions 页面选 Release → Run workflow，DMG 会作为构建产物保存。
+3. 创建 Release 并上传 DMG：
+
+```bash
+gh release create v1.1 dist/EyeBreak-1.1.dmg --title "EyeBreak 1.1" --generate-notes
+```
 
 ## 三、项目结构
 
