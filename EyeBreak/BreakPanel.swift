@@ -127,6 +127,7 @@ private final class FloatingPanel: NSPanel {
 private struct BreakPanelView: View {
     @ObservedObject var model: EyeBreakModel
     @ObservedObject var state: BreakPanelController.State
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -144,7 +145,7 @@ private struct BreakPanelView: View {
             .padding(22)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
-            if state.celebrating {
+            if state.celebrating && !reduceMotion {
                 ConfettiView()
                     .allowsHitTesting(false)
             }
@@ -224,11 +225,12 @@ struct BreakChoices: View {
 private struct BobbingTomato: View {
     var size: CGFloat
     @State private var up = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         TomatoAvatar(size: size)
-            .offset(y: up ? -4 : 3)
-            .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: up)
+            .offset(y: reduceMotion ? 0 : (up ? -4 : 3))
+            .animation(reduceMotion ? nil : .easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: up)
             .onAppear { up = true }
     }
 }
@@ -236,6 +238,7 @@ private struct BobbingTomato: View {
 /// 休息完成：番茄仔弹出来 + 一句话
 private struct CelebrationContent: View {
     @State private var popped = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 10) {
@@ -248,7 +251,11 @@ private struct CelebrationContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.5)) { popped = true }
+            if reduceMotion {
+                popped = true
+            } else {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.5)) { popped = true }
+            }
         }
     }
 }
