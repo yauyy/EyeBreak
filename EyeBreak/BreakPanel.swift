@@ -172,7 +172,7 @@ private struct BreakPanelView: View {
                 .font(Theme.font(19, .bold))
                 .foregroundStyle(Theme.ink)
                 .padding(.top, 10)
-            Text("看看 6 米外，放松 \(Int(model.restDuration)) 秒")
+            Text("\(model.exercise.instruction)，放松 \(Int(model.restDuration)) 秒")
                 .font(Theme.font(13))
                 .foregroundStyle(Theme.inkSoft)
                 .padding(.top, 4)
@@ -183,18 +183,20 @@ private struct BreakPanelView: View {
 
     private var resting: some View {
         VStack(spacing: 0) {
-            RingView(remaining: 1 - model.progress, color: Theme.leaf, lineWidth: 11) {
-                Text("\(model.remainingSeconds)")
-                    .font(Theme.font(42, .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(Theme.ink)
+            RingView(remaining: 1 - model.progress, color: Theme.leaf, lineWidth: 10) {
+                TomatoCharacter(motion: model.exercise.motion, size: 82)
             }
-            .frame(width: 118, height: 118)
-            Text("看远处，眨眨眼")
-                .font(Theme.font(14, .medium))
+            .frame(width: 124, height: 124)
+            Text(model.exercise.title)
+                .font(Theme.font(18, .bold))
+                .foregroundStyle(Theme.ink)
+                .padding(.top, 12)
+            Text("还剩 \(model.remainingSeconds) 秒")
+                .font(Theme.font(13, .medium))
+                .monospacedDigit()
                 .foregroundStyle(Theme.inkSoft)
-                .padding(.top, 14)
-            Spacer(minLength: 8)
+                .padding(.top, 2)
+            Spacer(minLength: 6)
             Button("提前结束", action: model.skipBreak)
                 .buttonStyle(PillButtonStyle(kind: .plain))
         }

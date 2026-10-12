@@ -46,6 +46,13 @@ enum EyeBreakConfig {
     static let snoozeInterval: TimeInterval = 5 * 60
 
     private static let snapshotKey = "timerSnapshot"
+    private static let exerciseIndexKey = "exerciseIndex"
+
+    /// 上次轮到的休息内容序号；从未休息过时为 -1，第一次休息从「看看远处」开始
+    static var exerciseIndex: Int {
+        get { UserDefaults.standard.object(forKey: exerciseIndexKey) as? Int ?? -1 }
+        set { UserDefaults.standard.set(newValue, forKey: exerciseIndexKey) }
+    }
 
     static func saveSnapshot(_ snapshot: EyeBreakModel.Snapshot) {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }

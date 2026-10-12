@@ -470,6 +470,45 @@ struct EyeBreakModelTests {
         #expect(celebrations == 0)
     }
 
+    // MARK: - 休息内容轮换
+
+    @Test("第一次休息是看看远处，之后依次轮换并循环")
+    func exercisesRotate() {
+        var seen: [RestExercise] = []
+        model.start()
+        for _ in 0..<5 {
+            advance(20 * 60)
+            seen.append(model.exercise)
+            // 跳过休息会直接开始新一轮专注
+            model.skipBreak()
+        }
+        #expect(seen == [.lookFar, .blink, .closeEyes, .rollEyes, .lookFar])
+    }
+
+    @Test("稍后提醒再次到点时，休息内容保持不变")
+    func snoozeKeepsExercise() {
+        finishWorkRound()
+        let first = model.exercise
+        model.snooze()
+        advance(300)
+        #expect(model.phase == .awaitingBreak)
+        #expect(model.exercise == first)
+    }
+
+    @Test("从上次的轮换位置继续")
+    func exerciseResumesFromSavedIndex() {
+        let clock = clock
+        let resumed = EyeBreakModel(
+            workInterval: 60, restDuration: 20, reminder: spy,
+            now: { clock.now }, idleTime: { 0 }, isInMeeting: { false },
+            exerciseIndex: 1, usesSystemTimer: false
+        )
+        resumed.start()
+        clock.advance(60)
+        resumed.tick()
+        #expect(resumed.exercise == .closeEyes)
+    }
+
     // MARK: - 会议
 
     @Test("专注到点时正在开会：先不提醒，会议结束立即提醒")

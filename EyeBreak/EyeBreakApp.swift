@@ -30,7 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = EyeBreakModel(
             workInterval: EyeBreakConfig.workInterval,
             restDuration: EyeBreakConfig.restDuration,
-            reminder: ReminderSounds()
+            reminder: ReminderSounds(),
+            exerciseIndex: EyeBreakConfig.exerciseIndex
         )
         model.onPreferencesChanged = { work, rest in
             EyeBreakConfig.save(workInterval: work, restDuration: rest)
@@ -45,6 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 先记账再创建面板：两者都订阅 breakCompleted，按订阅顺序收到，庆祝画面才能显示最新数量
         model.breakCompleted
             .sink { [stats] in MainActor.assumeIsolated { stats.recordBreak() } }
+            .store(in: &cancellables)
+        model.$exerciseIndex
+            .dropFirst()
+            .sink { EyeBreakConfig.exerciseIndex = $0 }
             .store(in: &cancellables)
         breakPanel = BreakPanelController(model: model, stats: stats)
         if EyeBreakConfig.autoStart {

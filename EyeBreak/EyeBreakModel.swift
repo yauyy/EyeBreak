@@ -52,6 +52,10 @@ final class EyeBreakModel: ObservableObject {
     @Published private(set) var isSnoozing = false
     /// 专注时间已到，但正在开会（麦克风使用中），提醒推迟到会议结束
     @Published private(set) var isDeferredForMeeting = false
+    /// 当前（或即将进行的）休息内容在轮换列表中的序号；每次正常提醒前往后挪一个
+    @Published private(set) var exerciseIndex: Int
+
+    var exercise: RestExercise { RestExercise.at(max(0, exerciseIndex)) }
 
     /// 休息倒计时自然结束时发出（提前结束、跳过不算），界面据此播放撒花动画
     let breakCompleted = PassthroughSubject<Void, Never>()
@@ -101,8 +105,10 @@ final class EyeBreakModel: ObservableObject {
         isInMeeting: @escaping () -> Bool = MeetingDetector.isInMeeting,
         awayThreshold: TimeInterval = EyeBreakConfig.awayThreshold,
         snoozeInterval: TimeInterval = EyeBreakConfig.snoozeInterval,
+        exerciseIndex: Int = -1,
         usesSystemTimer: Bool = true
     ) {
+        self.exerciseIndex = exerciseIndex
         self.workInterval = workInterval
         self.restDuration = restDuration
         self.reminder = reminder
@@ -311,6 +317,8 @@ final class EyeBreakModel: ObservableObject {
                 return
             }
             isDeferredForMeeting = false
+            // 稍后提醒再次到点时保持同一个休息内容，其余情况换下一个
+            if !isSnoozing { exerciseIndex += 1 }
             // 先把状态切到"等待休息"并清掉截止时间，再投递提醒：同一轮只可能触发一次，
             // 用户不点「开始休息」时计时保持冻结，也就不会反复提醒。
             // 计时器继续运行，只用于检测用户是否离开。
