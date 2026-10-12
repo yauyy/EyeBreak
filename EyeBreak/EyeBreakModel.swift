@@ -165,7 +165,7 @@ final class EyeBreakModel: ObservableObject {
         let compact = String(format: "%d:%02d", remainingSeconds / 60, remainingSeconds % 60)
         switch phase {
         case .working, .paused, .resting: return compact
-        case .awaitingBreak: return "休息"
+        case .awaitingBreak: return String(localized: "休息")
         case .idle, .away, .offHours: return nil
         }
     }

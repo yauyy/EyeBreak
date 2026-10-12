@@ -74,7 +74,7 @@ struct MenuContentView: View {
                     .font(Theme.font(13, .medium))
                     .foregroundStyle(statusColor)
                 if model.phase == .offHours {
-                    Text(schedule.schedule.rangeText + (schedule.schedule.weekdaysOnly ? " · 工作日" : ""))
+                    Text(verbatim: schedule.schedule.rangeText + (schedule.schedule.weekdaysOnly ? " · " + String(localized: "工作日") : ""))
                         .font(Theme.font(11))
                         .foregroundStyle(Theme.inkSoft)
                 }
@@ -91,20 +91,20 @@ struct MenuContentView: View {
 
     private var status: String {
         switch model.phase {
-        case .idle: return "准备好了吗"
+        case .idle: return String(localized: "准备好了吗")
         case .working:
             switch model.deferReason {
-            case .meeting: return "会议结束后提醒"
-            case .fullscreen: return "退出全屏后提醒"
-            case .focus: return "专注模式结束后提醒"
+            case .meeting: return String(localized: "会议结束后提醒")
+            case .fullscreen: return String(localized: "退出全屏后提醒")
+            case .focus: return String(localized: "专注模式结束后提醒")
             case nil: break
             }
-            return model.isSnoozing ? "稍后提醒" : "专注中"
-        case .paused: return "已暂停"
-        case .awaitingBreak: return "该休息啦"
-        case .resting: return "休息中"
-        case .away: return "离开中"
-        case .offHours: return "工作时段外"
+            return model.isSnoozing ? String(localized: "稍后提醒") : String(localized: "专注中")
+        case .paused: return String(localized: "已暂停")
+        case .awaitingBreak: return String(localized: "该休息啦")
+        case .resting: return String(localized: "休息中")
+        case .away: return String(localized: "离开中")
+        case .offHours: return String(localized: "工作时段外")
         }
     }
 
@@ -152,7 +152,7 @@ struct MenuContentView: View {
     private var settings: some View {
         VStack(spacing: 10) {
             CuteStepper(
-                title: "专注", unit: "分钟",
+                title: "专注", unit: String(localized: "分钟"),
                 value: Binding(
                     get: { Int(model.workInterval / 60) },
                     set: { model.setWorkInterval(TimeInterval($0 * 60)) }
@@ -160,7 +160,7 @@ struct MenuContentView: View {
                 range: EyeBreakConfig.workMinutesRange, step: 5
             )
             CuteStepper(
-                title: "眺望", unit: "秒",
+                title: "眺望", unit: String(localized: "秒"),
                 value: Binding(
                     get: { Int(model.restDuration) },
                     set: { model.setRestDuration(TimeInterval($0)) }
@@ -213,7 +213,7 @@ struct MenuContentView: View {
         .toggleStyle(CuteToggleStyle())
         if launchAtLogin.needsApproval || launchAtLogin.failed {
             HStack {
-                Text(launchAtLogin.failed ? "设置失败，可在系统设置里手动添加" : "需要在系统设置里允许")
+                (launchAtLogin.failed ? Text("设置失败，可在系统设置里手动添加") : Text("需要在系统设置里允许"))
                     .font(Theme.font(12))
                     .foregroundStyle(Theme.inkSoft)
                 Spacer()
@@ -228,14 +228,14 @@ struct MenuContentView: View {
         Toggle(isOn: $schedule.schedule.isEnabled) { settingTitle("只在工作时段提醒") }
             .toggleStyle(CuteToggleStyle())
         if schedule.schedule.isEnabled {
-            CuteStepper(title: "开始", unit: "点", value: $schedule.schedule.startHour, range: WorkSchedule.hourRange, step: 1)
-            CuteStepper(title: "结束", unit: "点", value: $schedule.schedule.endHour, range: WorkSchedule.hourRange, step: 1)
+            CuteStepper(title: "开始", unit: String(localized: "点"), value: $schedule.schedule.startHour, range: WorkSchedule.hourRange, step: 1)
+            CuteStepper(title: "结束", unit: String(localized: "点"), value: $schedule.schedule.endHour, range: WorkSchedule.hourRange, step: 1)
             Toggle(isOn: $schedule.schedule.weekdaysOnly) { settingTitle("仅工作日") }
                 .toggleStyle(CuteToggleStyle())
         }
     }
 
-    private func settingTitle(_ title: String) -> some View {
+    private func settingTitle(_ title: LocalizedStringKey) -> some View {
         Text(title)
             .font(Theme.font(14, .medium))
             .foregroundStyle(Theme.ink)
@@ -293,7 +293,7 @@ private struct SoundPicker: View {
                 Button {
                     onSelect(option)
                 } label: {
-                    Text(option.title)
+                    Text(verbatim: option.title)
                         .font(Theme.font(12, .semibold))
                         .foregroundStyle(isSelected ? .white : Theme.ink)
                         .frame(maxWidth: .infinity)
@@ -351,22 +351,22 @@ private struct VersionFooter: View {
     @ObservedObject var updates: AppUpdater
 
     var body: some View {
-        HStack {
+        HStack(spacing: 4) {
             Text("版本 \(updates.currentVersion)")
                 .font(Theme.font(12))
                 .foregroundStyle(Theme.inkSoft)
             Spacer()
             Button("反馈") { NSWorkspace.shared.open(AppLinks.newIssue()) }
-                .buttonStyle(PillButtonStyle(kind: .plain))
+                .buttonStyle(PillButtonStyle(kind: .plain, small: true))
                 .help("在 GitHub 上反馈问题")
             if let notices = AppLinks.thirdPartyNotices {
                 Button("许可") { NSWorkspace.shared.open(notices) }
-                    .buttonStyle(PillButtonStyle(kind: .plain))
+                    .buttonStyle(PillButtonStyle(kind: .plain, small: true))
                     .help("查看开源许可")
             }
             if updates.isConfigured {
                 Button("检查更新", action: updates.checkForUpdates)
-                    .buttonStyle(PillButtonStyle(kind: .plain))
+                    .buttonStyle(PillButtonStyle(kind: .plain, small: true))
                     .disabled(!updates.canCheckForUpdates)
             }
         }
@@ -392,8 +392,10 @@ private struct WeekChart: View {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(barColor(day))
                         .frame(height: max(4, maxBarHeight * CGFloat(day.count) / CGFloat(peak)))
-                    Text(day.isToday ? "今" : Self.weekdayLabel(day.weekday))
+                    Text(verbatim: day.isToday ? String(localized: "今") : Self.weekdayLabel(day.weekday))
                         .font(Theme.font(11, day.isToday ? .semibold : .regular))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .foregroundStyle(day.isToday ? Theme.ink : Theme.inkSoft)
                 }
                 .frame(maxWidth: .infinity)
@@ -409,13 +411,13 @@ private struct WeekChart: View {
             FlowLayout(spacing: 5) {
                 ForEach(Achievement.allCases) { achievement in
                     let earned = unlocked.contains(achievement)
-                    Text(achievement.title)
+                    Text(verbatim: achievement.title)
                         .font(Theme.font(11, .semibold))
                         .foregroundStyle(earned ? .white : Theme.inkSoft)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(Capsule().fill(earned ? Theme.tomato : Theme.ink.opacity(0.07)))
-                        .accessibilityLabel(earned ? "已解锁：\(achievement.title)" : "未解锁：\(achievement.title)")
+                        .accessibilityLabel(earned ? Text("已解锁：\(achievement.title)") : Text("未解锁：\(achievement.title)"))
                 }
             }
         }
@@ -431,6 +433,6 @@ private struct WeekChart: View {
 
     /// 公历 weekday：1 是周日
     static func weekdayLabel(_ weekday: Int) -> String {
-        ["日", "一", "二", "三", "四", "五", "六"][(weekday - 1 + 7) % 7]
+        [String(localized: "日"), String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六")][(weekday - 1 + 7) % 7]
     }
 }

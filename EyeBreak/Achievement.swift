@@ -15,14 +15,14 @@ enum Achievement: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .firstTomato: return "第一个番茄"
-        case .dailyFive: return "单日 5 个"
-        case .dailyTen: return "单日 10 个"
-        case .streakThree: return "连续 3 天"
-        case .streakSeven: return "连续 7 天"
-        case .streakThirty: return "连续 30 天"
-        case .totalFifty: return "累计 50 个"
-        case .totalHundred: return "累计 100 个"
+        case .firstTomato: return String(localized: "第一个番茄")
+        case .dailyFive: return String(localized: "单日 5 个")
+        case .dailyTen: return String(localized: "单日 10 个")
+        case .streakThree: return String(localized: "连续 3 天")
+        case .streakSeven: return String(localized: "连续 7 天")
+        case .streakThirty: return String(localized: "连续 30 天")
+        case .totalFifty: return String(localized: "累计 50 个")
+        case .totalHundred: return String(localized: "累计 100 个")
         }
     }
 

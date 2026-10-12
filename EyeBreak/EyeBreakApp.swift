@@ -103,16 +103,16 @@ private struct MenuBarLabel: View {
     private var accessibility: String {
         let state: String
         switch model.phase {
-        case .working: state = "专注中"
-        case .awaitingBreak: state = "等待休息"
-        case .resting: state = "休息中"
-        case .away: state = "离开中"
-        case .offHours: state = "工作时段外"
-        case .idle, .paused: state = "未在计时"
+        case .working: state = String(localized: "专注中")
+        case .awaitingBreak: state = String(localized: "等待休息")
+        case .resting: state = String(localized: "休息中")
+        case .away: state = String(localized: "离开中")
+        case .offHours: state = String(localized: "工作时段外")
+        case .idle, .paused: state = String(localized: "未在计时")
         }
         if let text = model.menuBarText, model.phase != .awaitingBreak {
-            return "EyeBreak \(state)，剩余 \(text)"
+            return String(localized: "EyeBreak \(state)，剩余 \(text)")
         }
-        return "EyeBreak \(state)"
+        return "EyeBreak " + state
     }
 }

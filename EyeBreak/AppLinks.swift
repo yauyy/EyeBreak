@@ -20,16 +20,16 @@ enum AppLinks {
         system: String = ProcessInfo.processInfo.operatingSystemVersionString
     ) -> URL {
         let body = """
-        **遇到了什么问题**
+        **\(String(localized: "遇到了什么问题"))**
 
 
-        **怎么复现**
+        **\(String(localized: "怎么复现"))**
         1.
 
         ---
         - EyeBreak：\(version) (\(build))
         - macOS：\(system)
-        - 芯片：\(architecture)
+        - \(String(localized: "芯片"))：\(architecture)
         """
         var components = URLComponents(url: repository.appendingPathComponent("issues/new"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "body", value: body)]
@@ -43,7 +43,7 @@ enum AppLinks {
 
     private static var architecture: String {
         #if arch(arm64)
-        return "Apple 芯片"
+        return String(localized: "Apple 芯片")
         #else
         return "Intel"
         #endif

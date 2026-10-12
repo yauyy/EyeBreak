@@ -1,0 +1,5 @@
+/* 快捷指令与 Siri 短语的英文版（AppShortcuts.xcstrings 需要 macOS 14，这里用 .strings 兼容 macOS 13） */
+"用${applicationName}开始专注" = "Start focusing with ${applicationName}";
+"用${applicationName}开始休息" = "Start a break with ${applicationName}";
+"用${applicationName}暂停计时" = "Pause the timer with ${applicationName}";
+"用${applicationName}跳过休息" = "Skip the break with ${applicationName}";

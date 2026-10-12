@@ -13,11 +13,11 @@ enum ReminderSound: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .off: return "关闭"
-        case .glass: return "清脆"
-        case .purr: return "轻柔"
-        case .pop: return "啵"
-        case .tink: return "叮"
+        case .off: return String(localized: "关闭")
+        case .glass: return String(localized: "清脆")
+        case .purr: return String(localized: "轻柔")
+        case .pop: return String(localized: "啵")
+        case .tink: return String(localized: "叮")
         }
     }
 

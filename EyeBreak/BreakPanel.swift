@@ -213,7 +213,7 @@ struct BreakChoices: View {
             Button("跳过这次", action: model.skipBreak)
                 .buttonStyle(PillButtonStyle(kind: .plain))
             HStack(spacing: 10) {
-                Button(snoozeTitle, action: model.snooze)
+                Button(action: model.snooze) { Text(verbatim: snoozeTitle) }
                     .buttonStyle(PillButtonStyle(kind: .secondary))
                 Button("开始休息", action: model.startBreak)
                     .buttonStyle(PillButtonStyle())
@@ -224,7 +224,7 @@ struct BreakChoices: View {
 
     private var snoozeTitle: String {
         let seconds = Int(min(EyeBreakConfig.snoozeInterval, model.workInterval))
-        return seconds >= 60 ? "\(seconds / 60) 分钟后" : "\(seconds) 秒后"
+        return seconds >= 60 ? String(localized: "\(seconds / 60) 分钟后") : String(localized: "\(seconds) 秒后")
     }
 }
 

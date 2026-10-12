@@ -50,13 +50,16 @@ enum Theme {
 struct PillButtonStyle: ButtonStyle {
     enum Kind { case primary, secondary, plain }
     var kind: Kind = .primary
+    /// 小号文字：用于菜单底部这类空间紧张的地方
+    var small = false
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
         return configuration.label
-            .font(Theme.font(14, .semibold))
+            .font(Theme.font(small ? 12 : 14, .semibold))
             .lineLimit(1)
-            .padding(.horizontal, kind == .plain ? 6 : 16)
+            .fixedSize(horizontal: kind == .plain, vertical: false)
+            .padding(.horizontal, kind == .plain ? (small ? 3 : 6) : 16)
             .padding(.vertical, kind == .plain ? 4 : 0)
             .frame(maxWidth: kind == .plain ? nil : .infinity)
             .frame(height: kind == .plain ? nil : Theme.controlHeight)
@@ -111,7 +114,7 @@ struct RingView<Content: View>: View {
 
 /// 加减步进器
 struct CuteStepper: View {
-    let title: String
+    let title: LocalizedStringKey
     let unit: String
     @Binding var value: Int
     let range: ClosedRange<Int>
@@ -126,7 +129,7 @@ struct CuteStepper: View {
             roundButton("minus", enabled: value > range.lowerBound) {
                 value = max(range.lowerBound, value - step)
             }
-            Text("\(value) \(unit)")
+            Text(verbatim: "\(value) \(unit)")
                 .font(Theme.font(14, .semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.ink)
