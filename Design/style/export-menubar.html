@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>菜单栏图标导出</title>
+<style>html, body { margin: 0; background: transparent; } canvas { display: block; }</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="menubar.js"></script>
+<script>
+// 供无头浏览器截图导出：export-menubar.html?state=working&size=36，以 1 倍像素在左上角绘制
+const params = new URLSearchParams(location.search);
+const size = Number(params.get('size') || 36);
+const canvas = document.getElementById('c');
+canvas.width = canvas.height = size;
+const ctx = canvas.getContext('2d');
+ctx.setTransform(size / MB, 0, 0, size / MB, 0, 0);
+window.devicePixelRatio = 1;
+drawMenuIcon(canvas, size, params.get('variant') || 'color', params.get('state') || 'working', '#000');
+</script>
+</body>
+</html>

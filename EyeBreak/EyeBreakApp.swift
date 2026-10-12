@@ -60,17 +60,26 @@ private struct MenuBarLabel: View {
     @ObservedObject var model: EyeBreakModel
 
     var body: some View {
-        Image(systemName: symbol)
+        Image(nsImage: Self.icon(named: assetName))
             .accessibilityLabel(accessibility)
     }
 
-    private var symbol: String {
+    /// 彩色番茄仔，表情随状态变化（Assets 中的 MenuBar*，由 Design/style 导出）
+    private var assetName: String {
         switch model.phase {
-        case .working: return "eye"
-        case .awaitingBreak: return "bell.badge"
-        case .resting: return "cup.and.saucer"
-        case .idle, .paused: return "eye.slash"
+        case .working: return "MenuBarWorking"
+        case .awaitingBreak: return "MenuBarAwaiting"
+        case .resting: return "MenuBarResting"
+        case .idle, .paused: return "MenuBarIdle"
         }
+    }
+
+    /// 菜单栏默认把图片当模板渲染成单色，这里显式关闭模板模式以保留颜色
+    private static func icon(named name: String) -> NSImage {
+        let image = NSImage(named: name) ?? NSImage()
+        image.isTemplate = false
+        image.size = NSSize(width: 18, height: 18)
+        return image
     }
 
     private var accessibility: String {

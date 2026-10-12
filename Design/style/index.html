@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EyeBreak 画风总览</title>
+<style>
+  :root { --tomato: #F0543F; --leaf: #4DBA66; --cream: #FFF7EF; --cream-deep: #FFE8D9; --ink: #4A3428; --ink-soft: rgba(74,52,40,.55); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #F3EEEA; color: var(--ink); font: 15px/1.5 ui-rounded, "SF Pro Rounded", -apple-system, "PingFang SC", sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 24px 56px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 40px 0 14px; }
+  .lead { color: var(--ink-soft); margin: 0; }
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .tile { background: var(--cream); border-radius: 22px; padding: 20px; border: 2px solid var(--cream-deep); }
+  .tile h3 { font-size: 14px; margin: 0 0 12px; color: var(--ink-soft); font-weight: 600; }
+  .center { display: flex; justify-content: center; align-items: center; min-height: 170px; gap: 18px; }
+  .swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .sw { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .sw i { width: 34px; height: 34px; border-radius: 12px; border: 2px solid rgba(74,52,40,.12); flex: none; }
+  .sw b { display: block; font-size: 13px; }
+  .sw span { color: var(--ink-soft); font-size: 12px; }
+  .banner { width: 100%; max-width: 360px; background: rgba(255,255,255,.92); border-radius: 18px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; box-shadow: 0 6px 24px rgba(0,0,0,.12); }
+  .banner .t { font-weight: 700; font-size: 14px; }
+  .banner .b { font-size: 13px; color: #555; }
+  .banner .act { margin-left: auto; font-size: 12px; font-weight: 600; background: #EEE; border-radius: 10px; padding: 5px 10px; white-space: nowrap; }
+  .type .big { font-size: 44px; font-weight: 800; letter-spacing: -1px; }
+  .type .row { color: var(--ink-soft); }
+  .shot { width: 100%; border-radius: 22px; display: block; }
+  .variant { background: var(--cream); border: 2px solid var(--cream-deep); border-radius: 22px; padding: 20px; margin-bottom: 16px; }
+  .variant header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .variant header b { font-size: 17px; }
+  .variant header span { color: var(--ink-soft); font-size: 14px; }
+  .tag { font-size: 12px; font-weight: 700; color: #fff; background: var(--tomato); border-radius: 999px; padding: 2px 10px; }
+  .bars { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .bar { height: 30px; border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 0 14px; font: 13px -apple-system, "PingFang SC", sans-serif; }
+  .bar.light { background: rgba(246,246,246,.95); color: #1d1d1f; border: 1px solid rgba(0,0,0,.06); }
+  .bar.dark { background: #1F1F1F; color: #F5F5F7; }
+  .bar .dim { opacity: .5; }
+  .states { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+  .state { text-align: center; font-size: 12px; color: var(--ink-soft); }
+  .zoom { display: flex; justify-content: center; gap: 6px; padding: 10px 0 6px; }
+  .zoom .chip { border-radius: 12px; padding: 6px; line-height: 0; }
+  .zoom .chip.l { background: #F6F6F6; }
+  .zoom .chip.d { background: #1F1F1F; }
+  @media (max-width: 520px) { main { padding: 20px 16px 40px; } .states { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>EyeBreak 画风总览</h1>
+  <p class="lead">番茄仔 · 奶油色底 · 圆体字 · 粗描边 Q 版</p>
+
+  <h2>视觉元素</h2>
+  <section class="board">
+    <div class="tile"><h3>App 图标</h3><div class="center"><canvas id="appIcon"></canvas></div></div>
+    <div class="tile"><h3>角色：番茄仔</h3><div class="center"><canvas id="avatar"></canvas></div></div>
+    <div class="tile"><h3>色板</h3>
+      <div class="swatches">
+        <div class="sw"><i style="background:#F0543F"></i><div><b>番茄红</b><span>#F0543F</span></div></div>
+        <div class="sw"><i style="background:#4DBA66"></i><div><b>叶子绿</b><span>#4DBA66</span></div></div>
+        <div class="sw"><i style="background:#FFF7EF"></i><div><b>奶油</b><span>#FFF7EF</span></div></div>
+        <div class="sw"><i style="background:#4A3428"></i><div><b>可可棕</b><span>#4A3428</span></div></div>
+      </div>
+    </div>
+    <div class="tile type"><h3>字体：SF Rounded 圆体</h3>
+      <div class="big">20:00</div>
+      <div class="row">专注中 · 该休息啦 · 休息完成！</div>
+    </div>
+    <div class="tile" style="grid-column: 1 / -1"><h3>系统通知横幅</h3>
+      <div class="center" style="min-height: 90px">
+        <div class="banner">
+          <canvas id="bannerIcon"></canvas>
+          <div><div class="t">休息一下眼睛吧</div><div class="b">看看 6 米外，放松 20 秒</div></div>
+          <div class="act">开始休息</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <h2>界面</h2>
+  <img class="shot" src="../ui-preview.png" alt="菜单面板与休息提醒面板">
+
+  <h2>菜单栏图标方案</h2>
+  <p class="lead" style="margin-bottom: 14px">番茄仔的表情跟着状态变：未开始「- -」、专注中「• •」、该休息「• o •」、休息中「^ ^」。下面的菜单栏按实际尺寸（18pt）绘制。</p>
+  <div id="variants"></div>
+</main>
+
+<script src="../icons-canvas/icons.js"></script>
+<script src="menubar.js"></script>
+<script>
+function renderIcon(canvas, size, plate) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.height = Math.round(size * dpr);
+  canvas.style.width = canvas.style.height = size + 'px';
+  const ctx = canvas.getContext('2d');
+  K = size * dpr / W;
+  ctx.setTransform(K, 0, 0, K, 0, 0);
+  PLATE = plate;
+  ICONS.find(i => i.key === 'A-tomato').draw(ctx);
+  PLATE = true;
+}
+renderIcon(document.getElementById('appIcon'), 150, true);
+renderIcon(document.getElementById('avatar'), 150, false);
+renderIcon(document.getElementById('bannerIcon'), 40, true);
+
+const VARIANTS = [
+  { key: 'color', name: 'A 彩色番茄仔', desc: '和 App 图标一模一样的小番茄，最可爱，深浅菜单栏都一样醒目', tag: '推荐' },
+  { key: 'filled', name: 'B 实心剪影', desc: '系统风格的单色图标，脸部镂空，自动适配浅色和深色菜单栏' },
+  { key: 'outline', name: 'C 线条剪影', desc: '更轻的单色线条版，和系统其他图标最协调' },
+];
+const STATES = [['idle', '未开始'], ['working', '专注中'], ['awaiting', '该休息'], ['resting', '休息中']];
+
+const root = document.getElementById('variants');
+for (const v of VARIANTS) {
+  const el = document.createElement('section');
+  el.className = 'variant';
+  el.innerHTML = `<header><b>${v.name}</b>${v.tag ? `<span class="tag">${v.tag}</span>` : ''}<span>${v.desc}</span></header>
+    <div class="bars">
+      <div class="bar light"><span class="dim">Wi-Fi</span><span class="dim">100%</span><canvas data-fg="#1d1d1f"></canvas><span>10月12日 周一 10:52</span></div>
+      <div class="bar dark"><span class="dim">Wi-Fi</span><span class="dim">100%</span><canvas data-fg="#F5F5F7"></canvas><span>10月12日 周一 10:52</span></div>
+    </div>
+    <div class="states"></div>`;
+  for (const c of el.querySelectorAll('.bar canvas')) drawMenuIcon(c, 18, v.key, 'working', c.dataset.fg);
+  const states = el.querySelector('.states');
+  for (const [s, label] of STATES) {
+    const box = document.createElement('div');
+    box.className = 'state';
+    box.innerHTML = `<div class="zoom"><div class="chip l"><canvas></canvas></div><div class="chip d"><canvas></canvas></div></div>${label}`;
+    const [l, d] = box.querySelectorAll('canvas');
+    drawMenuIcon(l, 44, v.key, s, '#1d1d1f');
+    drawMenuIcon(d, 44, v.key, s, '#F5F5F7');
+    states.appendChild(box);
+  }
+  root.appendChild(el);
+}
+</script>
+</body>
+</html>
