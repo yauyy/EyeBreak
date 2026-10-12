@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EyeBreak Q 版图标</title>
+<style>
+  :root { --bg: #F5F5F7; --card: #fff; --text: #1D1D1F; --muted: #6E6E73; --line: rgba(0,0,0,.08); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "PingFang SC", sans-serif; }
+  header { max-width: 1240px; margin: 0 auto; padding: 28px 24px 4px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--muted); }
+  .grid { max-width: 1240px; margin: 0 auto; padding: 20px 24px 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px 20px 20px; text-align: center; }
+  .name { font-size: 20px; font-weight: 600; margin-top: 6px; }
+  .desc { color: var(--muted); font-size: 14px; }
+  .sizes { display: flex; gap: 14px; align-items: center; justify-content: center; margin: 14px 0 12px; }
+  button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 5px 12px; cursor: pointer; color: var(--text); }
+  button:hover { background: #F0F0F2; }
+  .dark { background: #1E1E1E; color: #A1A1A6; padding: 24px 24px 32px; }
+  .dark .inner { max-width: 1240px; margin: 0 auto; }
+  .dark .row { display: flex; flex-wrap: wrap; gap: 28px; margin-top: 16px; }
+  .dark .item { display: flex; align-items: center; gap: 12px; color: #D1D1D6; }
+  @media (max-width: 420px) { .grid { grid-template-columns: 1fr; padding: 16px; } header { padding: 20px 16px 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>EyeBreak Q 版图标 · Canvas</h1>
+  <p>每个图标都由 Canvas 2D 实时绘制：大图 240px，下方依次是 64 / 32 / 16px。</p>
+</header>
+<main class="grid" id="grid"></main>
+<section class="dark">
+  <div class="inner">
+    深色背景下的效果（96px / 32px）
+    <div class="row" id="darkRow"></div>
+  </div>
+</section>
+
+<script src="icons.js"></script>
+<script>
+function render(canvas, icon, size) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.height = Math.round(size * dpr);
+  canvas.style.width = canvas.style.height = size + 'px';
+  const ctx = canvas.getContext('2d');
+  K = (size * dpr) / W;
+  ctx.setTransform(K, 0, 0, K, 0, 0);
+  icon.draw(ctx);
+}
+
+function download(icon) {
+  const c = document.createElement('canvas');
+  c.width = c.height = W;
+  K = 1;
+  icon.draw(c.getContext('2d'));
+  c.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `EyeBreak-${icon.key}.png`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+}
+
+const grid = document.getElementById('grid');
+const darkRow = document.getElementById('darkRow');
+for (const icon of ICONS) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const big = document.createElement('canvas');
+  card.appendChild(big);
+  card.insertAdjacentHTML('beforeend', `<div class="name">${icon.name}</div><div class="desc">${icon.desc}</div><div class="sizes"></div>`);
+  const sizes = card.querySelector('.sizes');
+  for (const s of [64, 32, 16]) { const c = document.createElement('canvas'); sizes.appendChild(c); render(c, icon, s); }
+  const btn = document.createElement('button');
+  btn.textContent = '下载 1024 PNG';
+  btn.onclick = () => download(icon);
+  card.appendChild(btn);
+  grid.appendChild(card);
+  render(big, icon, 240);
+
+  const item = document.createElement('div');
+  item.className = 'item';
+  const d1 = document.createElement('canvas'), d2 = document.createElement('canvas');
+  item.append(d1, d2, icon.name.split(' ')[0]);
+  darkRow.appendChild(item);
+  render(d1, icon, 96); render(d2, icon, 32);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs><filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.28"/></filter>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#72D6FF"/><stop offset="1" stop-color="#1F6AE0"/></linearGradient>
+<radialGradient id="iris" cx="0.38" cy="0.32" r="0.8"><stop offset="0" stop-color="#6CF0D8"/><stop offset="1" stop-color="#087A8C"/></radialGradient>
+<filter id="es" x="-20%" y="-30%" width="140%" height="170%"><feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#0B3A7A" flood-opacity="0.35"/></filter>
+<clipPath id="eye"><path d="M212 520 C330 330 694 330 812 520 C694 710 330 710 212 520 Z"/></clipPath>
+</defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#s)"/>
+<path d="M212 520 C330 330 694 330 812 520 C694 710 330 710 212 520 Z" fill="#fff" filter="url(#es)"/>
+<g clip-path="url(#eye)">
+<circle cx="512" cy="520" r="134" fill="url(#iris)"/>
+<circle cx="512" cy="520" r="62" fill="#0B2440"/>
+<circle cx="554" cy="476" r="25" fill="#fff"/>
+<circle cx="476" cy="562" r="10" fill="#fff" opacity=".7"/>
+</g>
+</svg>

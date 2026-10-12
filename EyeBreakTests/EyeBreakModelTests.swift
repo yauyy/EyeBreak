@@ -1,0 +1,321 @@
+import Combine
+import Foundation
+import Testing
+@testable import EyeBreak
+
+@MainActor
+private final class SpyReminder: ReminderDelivering {
+    var delivered: [TimeInterval] = []
+    var cancelled = 0
+    var breakCompleteSounds = 0
+    func deliverReminder(restDuration: TimeInterval) { delivered.append(restDuration) }
+    func cancelPendingReminders() { cancelled += 1 }
+    func playBreakComplete() { breakCompleteSounds += 1 }
+}
+
+@MainActor
+private final class FakeClock {
+    var now = Date(timeIntervalSince1970: 1_000_000)
+    func advance(_ seconds: TimeInterval) { now += seconds }
+}
+
+@MainActor
+struct EyeBreakModelTests {
+    private let clock = FakeClock()
+    private let spy = SpyReminder()
+    private let model: EyeBreakModel
+
+    init() {
+        let clock = clock
+        model = EyeBreakModel(workInterval: 20 * 60, restDuration: 20, reminder: spy, now: { clock.now }, usesSystemTimer: false)
+    }
+
+    private func advance(_ seconds: TimeInterval) {
+        clock.advance(seconds)
+        model.tick()
+    }
+
+    /// 从开始专注一直走到等待休息
+    private func finishWorkRound() {
+        model.start()
+        advance(20 * 60)
+    }
+
+    // MARK: - 专注计时
+
+    @Test("TC-02 初始显示 20:00，开始后从 20:00 计时")
+    func initialState() {
+        #expect(model.phase == .idle)
+        #expect(model.formattedRemaining == "20:00")
+        model.start()
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+    }
+
+    @Test("TC-03 倒计时递减")
+    func countsDown() {
+        model.start()
+        advance(1)
+        #expect(model.formattedRemaining == "19:59")
+        advance(60)
+        #expect(model.formattedRemaining == "18:59")
+    }
+
+    @Test("TC-04/05 暂停时间不变，继续从暂停处恢复")
+    func pauseAndResume() {
+        model.start()
+        advance(100)
+        model.pause()
+        #expect(model.phase == .paused)
+        #expect(model.formattedRemaining == "18:20")
+
+        advance(500)
+        #expect(model.formattedRemaining == "18:20")
+
+        model.start()
+        advance(20)
+        #expect(model.formattedRemaining == "18:00")
+    }
+
+    @Test("TC-06 重新计时恢复 20:00 并开始新一轮")
+    func reset() {
+        model.start()
+        advance(300)
+        model.pause()
+        model.reset()
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+        advance(1)
+        #expect(model.formattedRemaining == "19:59")
+    }
+
+    @Test("TC-12 重复点击开始不会重置或叠加计时")
+    func repeatedStartIsNoop() {
+        model.start()
+        advance(100)
+        model.start()
+        model.start()
+        advance(0)
+        #expect(model.formattedRemaining == "18:20")
+    }
+
+    // MARK: - 提醒与休息
+
+    @Test("TC-07 专注结束只提醒一次，进入等待休息并冻结计时")
+    func workEndAwaitsBreak() {
+        model.start()
+        advance(1199)
+        #expect(spy.delivered.isEmpty)
+        #expect(model.formattedRemaining == "00:01")
+
+        advance(1)
+        #expect(model.phase == .awaitingBreak)
+        #expect(spy.delivered == [20])
+        // 等待休息时展示的是休息时长
+        #expect(model.formattedRemaining == "00:20")
+    }
+
+    @Test("不点开始休息时，无论过多久都不会重复提醒")
+    func awaitingBreakDoesNotRepeat() {
+        finishWorkRound()
+        advance(3 * 3600)
+        model.tick()
+        #expect(model.phase == .awaitingBreak)
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("计时器严重迟到时也只提醒一次，且不出现负数")
+    func lateTickFiresOnlyOnce() {
+        model.start()
+        advance(5 * 1200 + 37)
+        #expect(spy.delivered.count == 1)
+        #expect(model.remainingSeconds >= 0)
+        model.tick()
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("开始休息后倒计时，结束时庆祝并自动开始下一轮专注")
+    func breakCompletesAndResumesWork() {
+        var celebrations = 0
+        let subscription = model.breakCompleted.sink { celebrations += 1 }
+        defer { subscription.cancel() }
+
+        finishWorkRound()
+        model.startBreak()
+        #expect(model.phase == .resting)
+        #expect(model.formattedRemaining == "00:20")
+        #expect(spy.cancelled >= 1)
+
+        advance(5)
+        #expect(model.formattedRemaining == "00:15")
+
+        advance(15)
+        #expect(celebrations == 1)
+        #expect(spy.breakCompleteSounds == 1)
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+    }
+
+    @Test("跳过本次休息：不庆祝，直接开始新一轮专注")
+    func skipBreak() {
+        var celebrations = 0
+        let subscription = model.breakCompleted.sink { celebrations += 1 }
+        defer { subscription.cancel() }
+
+        finishWorkRound()
+        model.skipBreak()
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+        #expect(celebrations == 0)
+    }
+
+    @Test("休息中提前结束：不庆祝，直接开始新一轮专注")
+    func endBreakEarly() {
+        var celebrations = 0
+        let subscription = model.breakCompleted.sink { celebrations += 1 }
+        defer { subscription.cancel() }
+
+        finishWorkRound()
+        model.startBreak()
+        advance(8)
+        model.skipBreak()
+        #expect(model.phase == .working)
+        #expect(celebrations == 0)
+        #expect(spy.breakCompleteSounds == 0)
+    }
+
+    @Test("等待休息/休息中，开始、暂停、开始休息等无关操作无效")
+    func irrelevantActionsIgnored() {
+        finishWorkRound()
+        model.start()
+        model.pause()
+        #expect(model.phase == .awaitingBreak)
+
+        model.startBreak()
+        model.startBreak()
+        advance(5)
+        model.start()
+        model.pause()
+        #expect(model.phase == .resting)
+        #expect(model.formattedRemaining == "00:15")
+    }
+
+    // MARK: - 自定义时长
+
+    @Test("未开始时修改专注时长立即生效，并通知持久化")
+    func changeWorkIntervalWhenIdle() {
+        var saved: (TimeInterval, TimeInterval)?
+        model.onPreferencesChanged = { saved = ($0, $1) }
+        model.setWorkInterval(25 * 60)
+        #expect(model.formattedRemaining == "25:00")
+        #expect(saved?.0 == TimeInterval(25 * 60))
+        #expect(saved?.1 == TimeInterval(20))
+    }
+
+    @Test("专注中修改专注时长，本轮不变，下一轮生效")
+    func changeWorkIntervalWhileWorking() {
+        model.start()
+        advance(60)
+        model.setWorkInterval(30 * 60)
+        #expect(model.formattedRemaining == "19:00")
+
+        advance(19 * 60)
+        #expect(model.phase == .awaitingBreak)
+        model.skipBreak()
+        #expect(model.formattedRemaining == "30:00")
+    }
+
+    @Test("自定义休息时长用于提醒文案和休息倒计时")
+    func customRestDuration() {
+        model.setRestDuration(45)
+        finishWorkRound()
+        #expect(spy.delivered == [45])
+        model.startBreak()
+        #expect(model.formattedRemaining == "00:45")
+        advance(45)
+        #expect(model.phase == .working)
+    }
+
+    @Test("休息中修改休息时长，本次不变")
+    func changeRestWhileResting() {
+        finishWorkRound()
+        model.startBreak()
+        advance(5)
+        model.setRestDuration(60)
+        advance(15)
+        #expect(model.phase == .working)
+    }
+
+    // MARK: - 睡眠与退出
+
+    @Test("TC-10/11 专注中睡眠：暂停并保存，唤醒后从原剩余时间继续，不补发提醒")
+    func sleepWhileWorking() {
+        model.start()
+        advance(100)
+        model.systemWillSleep()
+        #expect(model.phase == .paused)
+
+        clock.advance(8 * 3600)
+        model.systemDidWake()
+        #expect(model.phase == .working)
+        model.tick()
+        #expect(model.formattedRemaining == "18:20")
+        #expect(spy.delivered.isEmpty)
+    }
+
+    @Test("TC-11 暂停中睡眠：唤醒后仍保持暂停")
+    func sleepWhilePausedStaysPaused() {
+        model.start()
+        advance(100)
+        model.pause()
+        model.systemWillSleep()
+        model.systemDidWake()
+        #expect(model.phase == .paused)
+        #expect(model.formattedRemaining == "18:20")
+    }
+
+    @Test("未开始时睡眠唤醒不会自动开始")
+    func sleepWhileIdleStaysIdle() {
+        model.systemWillSleep()
+        model.systemDidWake()
+        #expect(model.phase == .idle)
+    }
+
+    @Test("等待休息时睡眠：睡眠算作休息，唤醒后开始新一轮专注")
+    func sleepWhileAwaitingBreak() {
+        finishWorkRound()
+        model.systemWillSleep()
+        clock.advance(600)
+        model.systemDidWake()
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("休息中睡眠：唤醒后开始新一轮专注，不重复庆祝")
+    func sleepWhileResting() {
+        var celebrations = 0
+        let subscription = model.breakCompleted.sink { celebrations += 1 }
+        defer { subscription.cancel() }
+
+        finishWorkRound()
+        model.startBreak()
+        advance(5)
+        model.systemWillSleep()
+        clock.advance(600)
+        model.tick()
+        model.systemDidWake()
+        #expect(model.phase == .working)
+        #expect(celebrations == 0)
+    }
+
+    @Test("TC-13 退出后不再触发提醒")
+    func shutdownStopsReminders() {
+        model.start()
+        model.shutdown()
+        advance(3600)
+        #expect(spy.delivered.isEmpty)
+        #expect(spy.cancelled >= 1)
+        #expect(model.phase == .idle)
+    }
+}

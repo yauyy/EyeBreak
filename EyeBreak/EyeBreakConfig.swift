@@ -1,0 +1,59 @@
+import Foundation
+
+enum EyeBreakConfig {
+    static let defaultWorkMinutes = 20
+    static let defaultRestSeconds = 20
+    static let workMinutesRange = 5...180
+    static let restSecondsRange = 5...600
+
+    private static let workMinutesKey = "workMinutes"
+    private static let restSecondsKey = "restSeconds"
+
+    /// 启动时使用的专注时长：用户上次设置的值，默认 20 分钟。
+    ///
+    /// 仅 Debug 构建支持通过启动参数改成秒级间隔，便于快速验证提醒流程：
+    /// `-EyeBreakTestInterval 10`（Xcode Scheme 中已预置，勾选即可）。
+    static var workInterval: TimeInterval {
+        if let test = testWorkInterval { return test }
+        let minutes = UserDefaults.standard.integer(forKey: workMinutesKey)
+        return TimeInterval(workMinutesRange.contains(minutes) ? minutes : defaultWorkMinutes) * 60
+    }
+
+    /// 启动时使用的眺望休息时长：用户上次设置的值，默认 20 秒。
+    static var restDuration: TimeInterval {
+        let seconds = UserDefaults.standard.integer(forKey: restSecondsKey)
+        return TimeInterval(restSecondsRange.contains(seconds) ? seconds : defaultRestSeconds)
+    }
+
+    static func save(workInterval: TimeInterval, restDuration: TimeInterval) {
+        // 测试间隔只是临时覆盖，不写入用户设置
+        if workInterval >= 60, workInterval.truncatingRemainder(dividingBy: 60) == 0 {
+            UserDefaults.standard.set(Int(workInterval / 60), forKey: workMinutesKey)
+        }
+        UserDefaults.standard.set(Int(restDuration), forKey: restSecondsKey)
+    }
+
+    static var testWorkInterval: TimeInterval? {
+        #if DEBUG
+        let override = UserDefaults.standard.double(forKey: "EyeBreakTestInterval")
+        if override >= 1 { return override }
+        #endif
+        return nil
+    }
+
+    /// 仅 Debug：启动后自动开始计时，便于无需点击界面即可验证提醒流程（`-EyeBreakAutoStart YES`）
+    static var autoStart: Bool {
+        #if DEBUG
+        return UserDefaults.standard.bool(forKey: "EyeBreakAutoStart")
+        #else
+        return false
+        #endif
+    }
+
+    static var isRunningTests: Bool {
+        let env = ProcessInfo.processInfo.environment
+        return env["XCTestConfigurationFilePath"] != nil
+            || env["XCTestBundlePath"] != nil
+            || env["XCTestSessionIdentifier"] != nil
+    }
+}

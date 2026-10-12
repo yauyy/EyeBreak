@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs><filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.28"/></filter>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8676FA"/><stop offset="1" stop-color="#352A96"/></linearGradient>
+<mask id="moon"><rect width="1024" height="1024" fill="#fff"/><circle cx="742" cy="282" r="72" fill="#000"/></mask>
+</defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#s)"/>
+<circle cx="700" cy="318" r="84" fill="#FFE08A" mask="url(#moon)"/>
+<g fill="#fff" opacity=".9"><path d="M340 270 Q340 300 370 300 Q340 300 340 330 Q340 300 310 300 Q340 300 340 270 Z"/><path d="M430 212 Q430 232 450 232 Q430 232 430 252 Q430 232 410 232 Q430 232 430 212 Z"/><path d="M806 432 Q806 450 824 450 Q806 450 806 468 Q806 450 788 450 Q806 450 806 432 Z"/></g>
+<g fill="none" stroke="#fff" stroke-linecap="round">
+<path d="M262 520 Q512 700 762 520" stroke-width="38"/>
+<path d="M362 578 L332 642 M437 602 L424 670 M512 610 L512 682 M587 602 L600 670 M662 578 L692 642" stroke-width="30"/>
+</g>
+</svg>

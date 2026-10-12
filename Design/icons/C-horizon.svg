@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs><filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.28"/></filter>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22B98D"/><stop offset="1" stop-color="#0A6150"/></linearGradient>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BDEBFF"/><stop offset="1" stop-color="#FFF1D2"/></linearGradient>
+<clipPath id="eye"><path d="M182 512 C312 300 712 300 842 512 C712 724 312 724 182 512 Z"/></clipPath>
+</defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#s)"/>
+<g clip-path="url(#eye)">
+<rect x="160" y="330" width="704" height="380" fill="url(#sky)"/>
+<circle cx="610" cy="468" r="54" fill="#FFC23D"/>
+<path d="M160 600 L320 470 L420 545 L525 440 L665 560 L745 505 L864 585 L864 720 L160 720 Z" fill="#86D4B6"/>
+<path d="M160 640 L300 560 L430 645 L565 570 L705 655 L864 590 L864 720 L160 720 Z" fill="#2E9C77"/>
+</g>
+<path d="M182 512 C312 300 712 300 842 512 C712 724 312 724 182 512 Z" fill="none" stroke="#fff" stroke-width="24" stroke-linejoin="round"/>
+</svg>

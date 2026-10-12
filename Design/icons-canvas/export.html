@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EyeBreak 图标导出</title>
+<style>html, body { margin: 0; background: transparent; } canvas { display: block; }</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="icons.js"></script>
+<script>
+// 供无头浏览器截图导出：export.html?key=A-tomato&size=128，以 1 倍像素在左上角绘制；&plate=0 只画角色
+const params = new URLSearchParams(location.search);
+const size = Number(params.get('size') || 1024);
+const icon = ICONS.find(i => i.key === (params.get('key') || 'A-tomato'));
+const canvas = document.getElementById('c');
+canvas.width = canvas.height = size;
+K = size / W;
+const ctx = canvas.getContext('2d');
+ctx.setTransform(K, 0, 0, K, 0, 0);
+PLATE = params.get('plate') !== '0';
+icon.draw(ctx);
+</script>
+</body>
+</html>
