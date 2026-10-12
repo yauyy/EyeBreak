@@ -8,6 +8,17 @@ final class TomatoStats: ObservableObject {
     @Published private(set) var today = 0
     /// 连续有休息记录的天数；今天还没休息时从昨天算起，避免零点一过就清零
     @Published private(set) var streak = 0
+    /// 最近 7 天（含今天，按时间先后）每天收集的番茄
+    @Published private(set) var lastSevenDays: [Day] = []
+
+    struct Day: Equatable, Identifiable {
+        let date: Date
+        let count: Int
+        /// 公历 weekday：1 是周日，7 是周六
+        let weekday: Int
+        let isToday: Bool
+        var id: Date { date }
+    }
 
     private static let storageKey = "tomatoCounts"
     private static let keepDays = 400
@@ -45,6 +56,16 @@ final class TomatoStats: ObservableObject {
             day = calendar.date(byAdding: .day, value: -1, to: day)!
         }
         streak = days
+
+        lastSevenDays = (0..<7).reversed().map { offset in
+            let date = calendar.date(byAdding: .day, value: -offset, to: todayDate)!
+            return Day(
+                date: calendar.startOfDay(for: date),
+                count: counts[key(for: date)] ?? 0,
+                weekday: calendar.component(.weekday, from: date),
+                isToday: offset == 0
+            )
+        }
     }
 
     private func key(for date: Date) -> String {

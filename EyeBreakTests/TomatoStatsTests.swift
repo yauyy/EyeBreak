@@ -101,3 +101,31 @@ struct TomatoStatsTests {
         defaults.removePersistentDomain(forName: suiteName)
     }
 }
+
+@MainActor
+struct TomatoStatsWeekTests {
+    @Test("最近 7 天按时间先后排列，最后一天是今天，没有记录的天数为 0")
+    func lastSevenDays() {
+        let suite = "TomatoStatsWeekTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let today = Date(timeIntervalSince1970: 1_791_799_200) // 2026-10-12 周一
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today)!
+        let old = calendar.date(byAdding: .day, value: -9, to: today)!
+
+        for (date, times) in [(twoDaysAgo, 2), (old, 5)] {
+            let stats = TomatoStats(defaults: defaults, now: { date }, calendar: calendar)
+            for _ in 0..<times { stats.recordBreak() }
+        }
+        let stats = TomatoStats(defaults: defaults, now: { today }, calendar: calendar)
+        stats.recordBreak()
+
+        #expect(stats.lastSevenDays.count == 7)
+        #expect(stats.lastSevenDays.map(\.count) == [0, 0, 0, 0, 2, 0, 1])
+        #expect(stats.lastSevenDays.last?.isToday == true)
+        #expect(stats.lastSevenDays.last?.weekday == 2)
+        #expect(stats.lastSevenDays.filter(\.isToday).count == 1)
+        defaults.removePersistentDomain(forName: suite)
+    }
+}

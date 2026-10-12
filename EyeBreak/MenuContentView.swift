@@ -16,7 +16,24 @@ struct MenuContentView: View {
             }
             VStack(spacing: 10) {
                 ring
-                TomatoTally(today: stats.today, streak: stats.streak)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showWeekStats.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        TomatoTally(today: stats.today, streak: stats.streak)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Theme.inkSoft)
+                            .rotationEffect(.degrees(showWeekStats ? 180 : 0))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("查看本周番茄")
+                if showWeekStats {
+                    WeekChart(days: stats.lastSevenDays)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
             controls
             settings
@@ -128,6 +145,7 @@ struct MenuContentView: View {
     }
 
     @AppStorage(EyeBreakConfig.showMoreSettingsKey) private var showMoreSettings = false
+    @AppStorage(EyeBreakConfig.showWeekStatsKey) private var showWeekStats = false
     @AppStorage(EyeBreakConfig.showMenuBarTimeKey) private var showMenuBarTime = false
 
     private var settings: some View {
@@ -351,5 +369,46 @@ private struct VersionFooter: View {
                     .disabled(!updates.canCheckForUpdates)
             }
         }
+    }
+}
+
+/// 最近 7 天的番茄柱状图：今天是番茄红，其他天是浅色
+private struct WeekChart: View {
+    let days: [TomatoStats.Day]
+    private let maxBarHeight: CGFloat = 44
+
+    var body: some View {
+        let peak = max(days.map(\.count).max() ?? 0, 1)
+        HStack(alignment: .bottom, spacing: 8) {
+            ForEach(days) { day in
+                VStack(spacing: 4) {
+                    Text(day.count > 0 ? "\(day.count)" : " ")
+                        .font(Theme.font(10, .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(day.isToday ? Theme.tomato : Theme.inkSoft)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(barColor(day))
+                        .frame(height: max(4, maxBarHeight * CGFloat(day.count) / CGFloat(peak)))
+                    Text(day.isToday ? "今" : Self.weekdayLabel(day.weekday))
+                        .font(Theme.font(11, day.isToday ? .semibold : .regular))
+                        .foregroundStyle(day.isToday ? Theme.ink : Theme.inkSoft)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(Theme.Spacing.card)
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("最近 7 天共收集 \(days.map(\.count).reduce(0, +)) 个番茄")
+    }
+
+    private func barColor(_ day: TomatoStats.Day) -> Color {
+        if day.count == 0 { return Theme.ink.opacity(0.08) }
+        return day.isToday ? Theme.tomato : Theme.tomatoSoft
+    }
+
+    /// 公历 weekday：1 是周日
+    static func weekdayLabel(_ weekday: Int) -> String {
+        ["日", "一", "二", "三", "四", "五", "六"][(weekday - 1 + 7) % 7]
     }
 }

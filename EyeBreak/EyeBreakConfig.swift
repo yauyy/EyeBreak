@@ -49,6 +49,8 @@ enum EyeBreakConfig {
     static let showMenuBarTimeKey = "showMenuBarTime"
     /// 菜单里「更多设置」是否展开
     static let showMoreSettingsKey = "showMoreSettings"
+    /// 菜单里的本周统计是否展开
+    static let showWeekStatsKey = "showWeekStats"
 
     private static let snapshotKey = "timerSnapshot"
     private static let exerciseIndexKey = "exerciseIndex"
