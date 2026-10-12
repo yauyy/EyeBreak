@@ -34,14 +34,14 @@ xattr -dr com.apple.quarantine /Applications/EyeBreak.app
 
 **可调整的设置**：专注时长（5–180 分钟）、眺望时长（5–600 秒）、提示音（可关闭）、开机自启、自动检查更新。
 
-**更新**：有新版本时，菜单顶部会出现提示，点「下载」打开 GitHub 下载页；菜单底部也可以手动「检查更新」。
+**更新**：基于 [Sparkle](https://sparkle-project.org)。有新版本时，菜单顶部会出现提示，点「更新」自动下载、校验签名、安装并重启；菜单底部也可以手动「检查更新」。从 1.2 开始支持，1.1 及更早版本需要手动安装一次 1.2。
 
 系统开了「减少动态效果」时，撒花和番茄仔的动作会自动关闭。
 
 - Swift + SwiftUI + AppKit，原生 `MenuBarExtra`，不显示 Dock 图标
 - 支持 macOS 13.0 及以上
 - 无账户、无埋点；开启 App Sandbox，不申请任何与提醒无关的权限
-- 唯一的联网行为是检查更新：每天最多一次读取 GitHub 上最新 Release 的版本号，不上传任何数据；在设置里关闭「自动检查更新」后完全不联网
+- 唯一的联网行为是更新：每天最多一次读取 GitHub 上的更新源 `appcast.xml`，有新版本且你同意时下载安装包，不上传任何数据；在设置里关闭「自动检查更新」后不会主动联网
 
 ## 一、用 Xcode 运行（推荐新手）
 
@@ -68,7 +68,7 @@ xattr -dr com.apple.quarantine /Applications/EyeBreak.app
 |---|---|
 | `-EyeBreakAutoStart YES` | 启动后自动开始计时，不用手动点「开始」 |
 | `-EyeBreakTestAway 10` | 把「离开电脑」的判定时间从 5 分钟缩短为 10 秒 |
-| `-EyeBreakTestCurrentVersion 0.9` | 假装当前是旧版本，用来测试新版本提示 |
+| `-EyeBreakTestFeedURL http://127.0.0.1:8766/appcast.xml` | 改用本地更新源，用来测试自动更新 |
 
 该参数**只在 Debug 构建中生效**，Release 构建永远是 20 分钟。测完记得取消勾选。
 
@@ -114,17 +114,20 @@ open build/Build/Products/Debug/EyeBreak.app --args -EyeBreakTestInterval 10 -Ey
 
 ### 发布新版本
 
-1. 在 Xcode 里修改 `MARKETING_VERSION`（Target → General → Version），或打包时用 `VERSION=1.1` 临时指定
-2. 本地打包：
+发布用的签名私钥由 Sparkle 的 `generate_keys` 生成，保存在发布者 Mac 的钥匙串里（请另外备份），对应的公钥写在构建设置 `SPARKLE_PUBLIC_KEY` 里。
+
+1. 在 Xcode 里修改 `MARKETING_VERSION`（Target → General → Version）；构建号由打包脚本按 git 提交数自动生成
+2. 把更新说明写进 `docs/release-notes/<版本号>.md`，它会显示在 App 内的更新窗口里
+3. 打包，生成 DMG 和签好名的更新源 `dist/appcast.xml`（会从钥匙串读取私钥，可能弹出授权）：
 
 ```bash
-VERSION=1.1 ./scripts/package.sh
+./scripts/package.sh
 ```
 
-3. 创建 Release 并上传 DMG：
+4. 创建 Release，**同时上传 DMG 和 appcast.xml**。App 读取的更新源地址是 `releases/latest/download/appcast.xml`，永远指向最新一个 Release 里的这个文件：
 
 ```bash
-gh release create v1.1 dist/EyeBreak-1.1.dmg --title "EyeBreak 1.1" --generate-notes
+gh release create v1.3 dist/EyeBreak-1.3.dmg dist/appcast.xml --title "EyeBreak 1.3" --notes-file docs/release-notes/1.3.md
 ```
 
 ## 三、项目结构
@@ -145,14 +148,13 @@ EyeBreak/
 ├── SystemIdle.swift           读取键鼠空闲时间（判断是否离开）
 ├── MeetingDetector.swift      读取麦克风是否被占用（判断是否开会）
 ├── LaunchAtLogin.swift        开机自启（SMAppService）
-├── UpdateChecker.swift        检查更新：读取 GitHub 最新 Release 版本号
+├── AppUpdater.swift           自动更新（Sparkle）：后台检查、菜单提示、下载安装
 ├── ConfettiView.swift         撒花动画（SwiftUI Canvas + TimelineView）
 └── Assets.xcassets            应用图标、番茄仔角色图、菜单栏表情图标
 EyeBreakTests/
 ├── EyeBreakModelTests.swift   计时状态机单元测试（注入假时钟、空闲时间、会议状态，毫秒级跑完）
 ├── TomatoStatsTests.swift     番茄收集统计
-├── ReminderSoundsTests.swift  提示音设置
-└── UpdateCheckerTests.swift   版本比较、接口解析、自动检查频率
+└── ReminderSoundsTests.swift  提示音设置
 Design/
 ├── icons/                     初版 SVG 图标方案（6 套，备选）
 └── icons-canvas/              Q 版 Canvas 图标方案（6 套）
