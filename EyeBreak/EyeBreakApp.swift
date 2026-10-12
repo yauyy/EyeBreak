@@ -40,7 +40,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 单元测试以本 App 为宿主运行，不要在测试中弹出面板
         guard !EyeBreakConfig.isRunningTests else { return }
         breakPanel = BreakPanelController(model: model)
-        if EyeBreakConfig.autoStart { model.start() }
+        if EyeBreakConfig.autoStart {
+            model.start()
+        } else if let snapshot = EyeBreakConfig.loadSnapshot() {
+            model.restore(snapshot)
+        }
+        // 先恢复再开始保存，避免启动时的初始状态覆盖掉上次的快照
+        model.onSnapshot = { EyeBreakConfig.saveSnapshot($0) }
         #if DEBUG
         Logger(subsystem: "EyeBreak", category: "debug")
             .notice("Idle seconds at launch: \(SystemIdle.seconds(), format: .fixed(precision: 1)), away threshold: \(EyeBreakConfig.awayThreshold), login item enabled: \(self.launchAtLogin.isEnabled)")

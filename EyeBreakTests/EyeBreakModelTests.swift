@@ -408,6 +408,105 @@ struct EyeBreakModelTests {
         #expect(celebrations == 0)
     }
 
+    // MARK: - 状态保存与恢复
+
+    /// 用同一个时钟新建一个模型，模拟重新打开 App
+    private func relaunch() -> EyeBreakModel {
+        let clock = clock
+        return EyeBreakModel(
+            workInterval: 20 * 60, restDuration: 20, reminder: spy,
+            now: { clock.now }, idleTime: { clock.idle }, awayThreshold: 5 * 60,
+            usesSystemTimer: false
+        )
+    }
+
+    @Test("退出时保存的是退出前的真实状态，而不是清理后的未开始")
+    func shutdownSavesRealState() {
+        var saved: [EyeBreakModel.Snapshot] = []
+        model.onSnapshot = { saved.append($0) }
+        model.start()
+        advance(100)
+        model.shutdown()
+        #expect(saved.last?.phase == .working)
+        #expect(saved.last?.remaining == 1100)
+    }
+
+    @Test("专注中退出、1 分钟内重新打开：扣掉中间的时间继续")
+    func restoreWorkingShortGap() {
+        model.start()
+        advance(100)
+        let snapshot = model.snapshot()
+        clock.advance(60)
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .working)
+        #expect(reopened.formattedRemaining == "17:20")
+    }
+
+    @Test("专注中退出、隔了很久（如重启）再打开：开始新一轮")
+    func restoreWorkingLongGap() {
+        model.start()
+        advance(100)
+        let snapshot = model.snapshot()
+        clock.advance(3600)
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .working)
+        #expect(reopened.formattedRemaining == "20:00")
+    }
+
+    @Test("暂停中退出：无论隔多久都保持暂停和剩余时间")
+    func restorePaused() {
+        model.start()
+        advance(100)
+        model.pause()
+        let snapshot = model.snapshot()
+        clock.advance(3 * 86400)
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .paused)
+        #expect(reopened.formattedRemaining == "18:20")
+    }
+
+    @Test("等待休息时退出、很快重新打开：重新弹出提醒，但不重复响铃")
+    func restoreAwaitingShortGap() {
+        finishWorkRound()
+        let snapshot = model.snapshot()
+        clock.advance(30)
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .awaitingBreak)
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("休息中退出、隔了很久再打开：算已经休息过，开始新一轮")
+    func restoreRestingLongGap() {
+        finishWorkRound()
+        model.startBreak()
+        let snapshot = model.snapshot()
+        clock.advance(3600)
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .working)
+        #expect(reopened.formattedRemaining == "20:00")
+    }
+
+    @Test("未开始时退出：重新打开仍是未开始")
+    func restoreIdle() {
+        let reopened = relaunch()
+        reopened.restore(model.snapshot())
+        #expect(reopened.phase == .idle)
+    }
+
+    @Test("快照可以编码再解码")
+    func snapshotCodable() throws {
+        model.start()
+        advance(42)
+        let snapshot = model.snapshot()
+        let decoded = try JSONDecoder().decode(EyeBreakModel.Snapshot.self, from: JSONEncoder().encode(snapshot))
+        #expect(decoded == snapshot)
+    }
+
     @Test("TC-13 退出后不再触发提醒")
     func shutdownStopsReminders() {
         model.start()

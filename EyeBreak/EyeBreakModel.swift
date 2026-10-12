@@ -30,7 +30,20 @@ final class EyeBreakModel: ObservableObject {
         case away
     }
 
-    @Published private(set) var phase: Phase = .idle
+    /// 用于退出后恢复的计时快照
+    struct Snapshot: Codable, Equatable {
+        enum SavedPhase: String, Codable {
+            case idle, working, paused, awaitingBreak, resting, away
+        }
+        var phase: SavedPhase
+        /// 专注中：保存时刻的剩余时间；暂停中：暂停时的剩余时间
+        var remaining: TimeInterval
+        var savedAt: Date
+    }
+
+    @Published private(set) var phase: Phase = .idle {
+        didSet { if phase != oldValue { persist() } }
+    }
     /// 当前阶段要展示的剩余秒数（专注阶段是专注剩余，休息阶段是休息剩余）
     @Published private(set) var remainingSeconds: Int
     @Published private(set) var workInterval: TimeInterval
@@ -40,6 +53,8 @@ final class EyeBreakModel: ObservableObject {
     let breakCompleted = PassthroughSubject<Void, Never>()
     /// 用户修改了时长设置，交给外部持久化
     var onPreferencesChanged: ((_ workInterval: TimeInterval, _ restDuration: TimeInterval) -> Void)?
+    /// 计时状态变化（以及专注中定期）时发出快照，交给外部持久化
+    var onSnapshot: ((Snapshot) -> Void)?
 
     private let reminder: ReminderDelivering
     private let now: () -> Date
@@ -62,6 +77,10 @@ final class EyeBreakModel: ObservableObject {
     /// 睡眠前处于等待休息/休息中：睡眠期间眼睛已离开屏幕，唤醒后直接开始新一轮专注。
     private var newRoundAfterWake = false
     private var sleepStartedAt: Date?
+    /// 退出过程中不再保存快照，避免把退出时的清理状态当成用户状态
+    private var isPersistenceEnabled = true
+    private var lastPersistedAt: Date?
+    private static let persistInterval: TimeInterval = 30
     private var observers: [NSObjectProtocol] = []
 
     init(
@@ -164,6 +183,8 @@ final class EyeBreakModel: ObservableObject {
 
     /// 退出前调用：停止计时、撤销提醒、移除系统监听。
     func shutdown() {
+        persist()
+        isPersistenceEnabled = false
         stopTicker()
         deadline = nil
         resumeAfterWake = false
@@ -173,6 +194,58 @@ final class EyeBreakModel: ObservableObject {
         let center = NSWorkspace.shared.notificationCenter
         observers.forEach(center.removeObserver)
         observers.removeAll()
+    }
+
+    // MARK: - 状态保存与恢复
+
+    func snapshot() -> Snapshot {
+        let saved: Snapshot.SavedPhase
+        var remaining: TimeInterval = 0
+        switch phase {
+        case .idle: saved = .idle
+        case .working: saved = .working; remaining = currentRemaining()
+        case .paused: saved = .paused; remaining = pausedRemaining
+        case .awaitingBreak: saved = .awaitingBreak
+        case .resting: saved = .resting
+        case .away: saved = .away
+        }
+        return Snapshot(phase: saved, remaining: remaining, savedAt: now())
+    }
+
+    /// 启动时恢复上次退出前的状态。离开超过离开阈值（例如重启电脑）视为已经休息过。
+    func restore(_ snapshot: Snapshot) {
+        guard phase == .idle else { return }
+        let elapsed = max(0, now().timeIntervalSince(snapshot.savedAt))
+        let wasAwayLong = elapsed >= awayThreshold
+        switch snapshot.phase {
+        case .idle:
+            return
+        case .paused:
+            pausedRemaining = min(max(0, snapshot.remaining), workInterval)
+            phase = .paused
+            updateDisplay()
+        case .working:
+            beginWorking(remaining: wasAwayLong ? workInterval : max(0, snapshot.remaining - elapsed))
+        case .awaitingBreak, .resting:
+            if wasAwayLong {
+                beginWorking(remaining: workInterval)
+            } else {
+                // 重新弹出提醒，但不再重复播放提醒音
+                deadline = nil
+                phase = .awaitingBreak
+                startTicker()
+                updateDisplay()
+            }
+        case .away:
+            beginWorking(remaining: workInterval)
+        }
+        logger.notice("Restored \(snapshot.phase.rawValue, privacy: .public) after \(elapsed, format: .fixed(precision: 0))s")
+    }
+
+    private func persist() {
+        guard isPersistenceEnabled else { return }
+        lastPersistedAt = now()
+        onSnapshot?(snapshot())
     }
 
     // MARK: - 计时
@@ -194,6 +267,9 @@ final class EyeBreakModel: ObservableObject {
 
         guard let deadline, now() >= deadline else {
             updateDisplay()
+            if phase == .working, now().timeIntervalSince(lastPersistedAt ?? .distantPast) >= Self.persistInterval {
+                persist()
+            }
             return
         }
         switch phase {

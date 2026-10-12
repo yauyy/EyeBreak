@@ -42,6 +42,18 @@ enum EyeBreakConfig {
         UserDefaults.standard.set(Int(restDuration), forKey: restSecondsKey)
     }
 
+    private static let snapshotKey = "timerSnapshot"
+
+    static func saveSnapshot(_ snapshot: EyeBreakModel.Snapshot) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        UserDefaults.standard.set(data, forKey: snapshotKey)
+    }
+
+    static func loadSnapshot() -> EyeBreakModel.Snapshot? {
+        guard let data = UserDefaults.standard.data(forKey: snapshotKey) else { return nil }
+        return try? JSONDecoder().decode(EyeBreakModel.Snapshot.self, from: data)
+    }
+
     static var testWorkInterval: TimeInterval? {
         #if DEBUG
         let override = UserDefaults.standard.double(forKey: "EyeBreakTestInterval")
