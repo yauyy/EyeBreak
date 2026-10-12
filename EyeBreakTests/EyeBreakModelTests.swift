@@ -604,6 +604,46 @@ struct EyeBreakModelTests {
         #expect(model.phase == .working)
     }
 
+    // MARK: - 快捷指令与专注模式
+
+    @Test("立即开始休息：专注中也能直接开始，休息完成后开始新一轮")
+    func startBreakNow() {
+        model.start()
+        advance(300)
+        model.startBreakNow()
+        #expect(model.phase == .resting)
+        #expect(model.formattedRemaining == "00:20")
+        advance(20)
+        #expect(model.phase == .working)
+        #expect(model.formattedRemaining == "20:00")
+        #expect(spy.breakCompleteSounds == 1)
+    }
+
+    @Test("立即开始休息：等待休息时等同于点「开始休息」，休息中不重复开始")
+    func startBreakNowWhileAwaiting() {
+        finishWorkRound()
+        let exercise = model.exercise
+        model.startBreakNow()
+        #expect(model.phase == .resting)
+        #expect(model.exercise == exercise)
+        advance(5)
+        model.startBreakNow()
+        #expect(model.formattedRemaining == "00:15")
+    }
+
+    @Test("专注模式要求暂停时：到点的提醒推迟到专注模式结束")
+    func focusHoldDefersReminder() {
+        model.start()
+        model.setFocusHold(true)
+        advance(20 * 60)
+        #expect(model.deferReason == .focus)
+        #expect(spy.delivered.isEmpty)
+        model.setFocusHold(false)
+        advance(1)
+        #expect(model.phase == .awaitingBreak)
+        #expect(spy.delivered.count == 1)
+    }
+
     // MARK: - 工作时段
 
     @Test("专注中离开工作时段：冻结计时、不提醒")

@@ -96,6 +96,7 @@ struct MenuContentView: View {
             switch model.deferReason {
             case .meeting: return "会议结束后提醒"
             case .fullscreen: return "退出全屏后提醒"
+            case .focus: return "专注模式结束后提醒"
             case nil: break
             }
             return model.isSnoozing ? "稍后提醒" : "专注中"

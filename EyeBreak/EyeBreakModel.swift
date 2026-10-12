@@ -61,7 +61,12 @@ final class EyeBreakModel: ObservableObject {
         case meeting
         /// 正在全屏使用某个 App（看视频、演示等）
         case fullscreen
+        /// 处于设置了「暂停休息提醒」的专注模式
+        case focus
     }
+
+    /// 系统专注模式的过滤条件要求暂停提醒（由 App Intents 的专注模式过滤条件设置）
+    @Published private(set) var isFocusHold = false
 
     var isDeferredForMeeting: Bool { deferReason == .meeting }
     /// 当前（或即将进行的）休息内容在轮换列表中的序号；每次正常提醒前往后挪一个
@@ -220,6 +225,31 @@ final class EyeBreakModel: ObservableObject {
         phase = .resting
         startTicker()
         updateDisplay()
+    }
+
+    /// 立即开始休息（快捷指令用）：不用等专注结束，马上开始一次眺望休息
+    func startBreakNow() {
+        switch phase {
+        case .awaitingBreak:
+            startBreak()
+        case .idle, .working, .paused, .away, .offHours:
+            exerciseIndex += 1
+            reminder.cancelPendingReminders()
+            deferReason = nil
+            deadline = now().addingTimeInterval(restDuration)
+            phase = .resting
+            startTicker()
+            updateDisplay()
+        case .resting:
+            return
+        }
+    }
+
+    /// 专注模式开启或关闭：开启「暂停休息提醒」的专注模式期间，到点的提醒推迟到专注模式结束
+    func setFocusHold(_ hold: Bool) {
+        guard hold != isFocusHold else { return }
+        logger.notice("Focus filter hold: \(hold)")
+        isFocusHold = hold
     }
 
     /// 稍后提醒：收起提醒，过一会儿（默认 5 分钟，不超过专注时长）再提醒一次。
@@ -424,6 +454,7 @@ final class EyeBreakModel: ObservableObject {
     }
 
     private func currentDeferReason() -> DeferReason? {
+        if isFocusHold { return .focus }
         if isInMeeting() { return .meeting }
         if isFullscreen() { return .fullscreen }
         return nil

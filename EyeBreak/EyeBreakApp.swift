@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             EyeBreakConfig.save(workInterval: work, restDuration: rest)
         }
         self.model = model
+        IntentHub.shared.model = model
         self.sounds = sounds
         self.schedule = schedule
         super.init()
