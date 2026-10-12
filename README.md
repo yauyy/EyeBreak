@@ -2,6 +2,20 @@
 
 常驻 macOS 菜单栏的护眼计时器：每专注 20 分钟，弹出提醒让你眺望远处 20 秒，休息完撒花庆祝，再自动开始下一轮。
 
+## 下载安装
+
+1. 到 [Releases](../../releases/latest) 下载最新的 `EyeBreak-x.x.dmg`
+2. 打开 DMG，把 EyeBreak 拖进「应用程序」
+3. 第一次打开：本应用没有 Apple 开发者签名和公证，macOS 会提示「无法验证开发者」。这时打开 **系统设置 → 隐私与安全性**，在页面底部找到 EyeBreak，点「仍要打开」。之后再打开就不会提示了
+
+也可以在终端里移除下载隔离标记，效果相同：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/EyeBreak.app
+```
+
+支持 macOS 13 及以上，Apple 芯片和 Intel 芯片通用。
+
 ## 使用流程
 
 1. 点菜单栏 👁 →「开始」，进入专注倒计时（默认 20 分钟）
@@ -73,6 +87,12 @@ open build/Build/Products/Debug/EyeBreak.app --args -EyeBreakTestInterval 10 -Ey
 ```
 
 想长期使用，可以把 `build/Build/Products/Release/EyeBreak.app` 拖进「应用程序」文件夹。
+
+打包发布用的 DMG（产物在 `dist/`）：
+
+```bash
+./scripts/package.sh
+```
 
 ## 三、通知权限
 
