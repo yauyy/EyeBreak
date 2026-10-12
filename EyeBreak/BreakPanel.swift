@@ -163,7 +163,6 @@ private struct BreakPanelView: View {
             RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous)
                 .strokeBorder(Theme.creamDeep, lineWidth: 2)
         )
-        .environment(\.colorScheme, .light)
     }
 
     private var awaiting: some View {
@@ -290,7 +289,7 @@ private struct PolkaDots: View {
             while y < size.height {
                 var x: CGFloat = row.isMultiple(of: 2) ? 12 : 12 + spacing / 2
                 while x < size.width {
-                    context.fill(Path(ellipseIn: CGRect(x: x - 2.5, y: y - 2.5, width: 5, height: 5)), with: .color(.white.opacity(0.9)))
+                    context.fill(Path(ellipseIn: CGRect(x: x - 2.5, y: y - 2.5, width: 5, height: 5)), with: .color(Theme.dot))
                     x += spacing
                 }
                 y += spacing

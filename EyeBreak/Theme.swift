@@ -1,16 +1,37 @@
+import AppKit
 import SwiftUI
 
-/// 与番茄仔图标一致的 Q 版配色：奶油底、番茄红、叶子绿、深棕描边色
+/// 与番茄仔图标一致的 Q 版配色：奶油底、番茄红、叶子绿、深棕描边色。
+/// 跟随系统深浅：深色模式下是「夜间番茄」，深可可底、奶油白文字，番茄红和叶子绿稍微提亮。
 enum Theme {
-    static let tomato = Color(red: 0.94, green: 0.33, blue: 0.27)
-    static let tomatoDeep = Color(red: 0.80, green: 0.22, blue: 0.18)
-    static let leaf = Color(red: 0.30, green: 0.73, blue: 0.40)
-    static let cream = Color(red: 1.00, green: 0.97, blue: 0.94)
-    static let creamDeep = Color(red: 1.00, green: 0.91, blue: 0.85)
-    static let ink = Color(red: 0.29, green: 0.20, blue: 0.16)
-    static let inkSoft = Color(red: 0.29, green: 0.20, blue: 0.16).opacity(0.55)
+    static let tomato = dynamic(light: (0.94, 0.33, 0.27), dark: (1.00, 0.42, 0.34))
+    static let tomatoDeep = dynamic(light: (0.80, 0.22, 0.18), dark: (0.76, 0.25, 0.19))
+    static let leaf = dynamic(light: (0.30, 0.73, 0.40), dark: (0.38, 0.80, 0.47))
+    /// 页面底色
+    static let cream = dynamic(light: (1.00, 0.97, 0.94), dark: (0.16, 0.13, 0.11))
+    /// 卡片底色
+    static let creamDeep = dynamic(light: (1.00, 0.91, 0.85), dark: (0.24, 0.19, 0.16))
+    /// 按钮、加减号等小控件的表面色
+    static let surface = dynamic(light: (1.00, 1.00, 1.00), dark: (0.31, 0.25, 0.21))
+    static let ink = dynamic(light: (0.29, 0.20, 0.16), dark: (0.97, 0.91, 0.86))
+    static let inkSoft = ink.opacity(0.55)
+    /// 提醒面板上的波点
+    static let dot = Color(nsColor: NSColor(name: nil) { appearance in
+        isDark(appearance) ? NSColor.white.withAlphaComponent(0.05) : NSColor.white.withAlphaComponent(0.9)
+    })
+
+    private static func dynamic(light: (CGFloat, CGFloat, CGFloat), dark: (CGFloat, CGFloat, CGFloat)) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let c = isDark(appearance) ? dark : light
+            return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
+        })
+    }
+
+    private static func isDark(_ appearance: NSAppearance) -> Bool {
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    }
     /// 未开始 / 暂停时的圆环：淡番茄色，比灰色更柔和
-    static let tomatoSoft = Color(red: 0.94, green: 0.33, blue: 0.27).opacity(0.35)
+    static let tomatoSoft = tomato.opacity(0.35)
 
     static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .rounded)
@@ -87,7 +108,7 @@ struct PillButtonStyle: ButtonStyle {
 
     private static let shape = RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
 
-    private var fill: Color { kind == .primary ? Theme.tomato : .white }
+    private var fill: Color { kind == .primary ? Theme.tomato : Theme.surface }
     private var base: Color { kind == .primary ? Theme.tomatoDeep : Theme.creamDeep }
 }
 
@@ -146,7 +167,7 @@ struct CuteStepper: View {
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundStyle(enabled ? Theme.tomato : Theme.inkSoft)
                 .frame(width: Theme.smallControlSize, height: Theme.smallControlSize)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous).fill(.white))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous).fill(Theme.surface))
                 .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous).strokeBorder(Theme.creamDeep, lineWidth: 1.5))
         }
         .buttonStyle(.plain)

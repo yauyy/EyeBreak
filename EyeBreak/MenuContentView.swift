@@ -42,7 +42,6 @@ struct MenuContentView: View {
         .padding(18)
         .frame(width: 280)
         .background(Theme.cream)
-        .environment(\.colorScheme, .light)
         // 用户可能在系统设置里改过登录项
         .onAppear {
             launchAtLogin.refresh()
@@ -311,7 +310,7 @@ private struct SoundPicker: View {
         .padding(Theme.Spacing.segmented)
         .background(
             RoundedRectangle(cornerRadius: Theme.Radius.segmented, style: .continuous)
-                .fill(.white)
+                .fill(Theme.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: Theme.Radius.segmented, style: .continuous)
