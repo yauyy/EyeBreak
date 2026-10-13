@@ -1,6 +1,9 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    " ": {
+      "shouldTranslate": false
+    },
     "%@，放松 %lld 秒": {
       "localizations": {
         "en": {
@@ -10,6 +13,9 @@
           }
         }
       }
+    },
+    "%lld": {
+      "shouldTranslate": false
     },
     "%lld 分钟后": {
       "localizations": {
@@ -31,6 +37,9 @@
         }
       }
     },
+    "+%lld": {
+      "shouldTranslate": false
+    },
     "Apple 芯片": {
       "localizations": {
         "en": {
@@ -40,6 +49,9 @@
           }
         }
       }
+    },
+    "EyeBreak": {
+      "shouldTranslate": false
     },
     "EyeBreak %@，剩余 %@": {
       "localizations": {
@@ -66,7 +78,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "M"
+            "value": "Mon"
           }
         }
       }
@@ -76,7 +88,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "W"
+            "value": "Wed"
           }
         }
       }
@@ -116,7 +128,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "T"
+            "value": "Tue"
           }
         }
       }
@@ -126,7 +138,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "F"
+            "value": "Fri"
           }
         }
       }
@@ -246,7 +258,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "S"
+            "value": "Sat"
           }
         }
       }
@@ -356,7 +368,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "T"
+            "value": "Thu"
           }
         }
       }
@@ -407,6 +419,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Paused"
+          }
+        }
+      }
+    },
+    "已经在专注中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already focusing"
+          }
+        }
+      }
+    },
+    "已经在休息中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already on a break"
           }
         }
       }
@@ -526,7 +558,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "S"
+            "value": "Sun"
           }
         }
       }
@@ -707,6 +739,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "v%@"
+          }
+        }
+      }
+    },
+    "现在不在休息时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It isn't break time"
+          }
+        }
+      }
+    },
+    "现在是休息时间，可以先开始或跳过休息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's break time. Start or skip the break first."
+          }
+        }
+      }
+    },
+    "现在没有在专注计时": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The focus timer isn't running"
           }
         }
       }
@@ -1100,18 +1162,6 @@
           }
         }
       }
-    },
-    " ": {
-      "shouldTranslate": false
-    },
-    "%lld": {
-      "shouldTranslate": false
-    },
-    "+%lld": {
-      "shouldTranslate": false
-    },
-    "EyeBreak": {
-      "shouldTranslate": false
     }
   },
   "version": "1.0"

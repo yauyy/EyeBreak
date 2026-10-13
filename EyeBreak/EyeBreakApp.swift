@@ -70,6 +70,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 先恢复再开始保存，避免启动时的初始状态覆盖掉上次的快照
         model.onSnapshot = { EyeBreakConfig.saveSnapshot($0) }
         updates.start()
+        // 专注模式在启动前就已开启时，系统不会再调用过滤条件，这里主动读一次当前状态
+        Task { [model] in
+            if let filter = try? await EyeBreakFocusFilter.current {
+                model.setFocusHold(filter.pauseReminders)
+            }
+        }
+        // 跨过零点时刷新今日番茄和本周统计
+        NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+            .receive(on: RunLoop.main)
+            .sink { [stats] _ in MainActor.assumeIsolated { stats.refresh() } }
+            .store(in: &cancellables)
         #if DEBUG
         Logger(subsystem: "EyeBreak", category: "debug")
             .notice("Idle seconds at launch: \(SystemIdle.seconds(), format: .fixed(precision: 1)), away threshold: \(EyeBreakConfig.awayThreshold), login item enabled: \(self.launchAtLogin.isEnabled), audio devices: \(MeetingDetector.audioDevices().count), running audio devices: \(MeetingDetector.audioDevices().filter(MeetingDetector.isAudioDeviceRunning).count), mic in use: \(MeetingDetector.isMicrophoneInUse()), visible windows: \((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]])?.count ?? -1), frontmost fullscreen: \(FullscreenDetector.isFrontmostAppFullscreen())")

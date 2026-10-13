@@ -41,6 +41,8 @@ final class EyeBreakModel: ObservableObject {
         /// 专注中：保存时刻的剩余时间；暂停中：暂停时的剩余时间
         var remaining: TimeInterval
         var savedAt: Date
+        /// 工作时段外用户手动开始了计时（旧版本快照没有这个字段）
+        var overridesSchedule: Bool?
     }
 
     @Published private(set) var phase: Phase = .idle {
@@ -68,7 +70,6 @@ final class EyeBreakModel: ObservableObject {
     /// 系统专注模式的过滤条件要求暂停提醒（由 App Intents 的专注模式过滤条件设置）
     @Published private(set) var isFocusHold = false
 
-    var isDeferredForMeeting: Bool { deferReason == .meeting }
     /// 当前（或即将进行的）休息内容在轮换列表中的序号；每次正常提醒前往后挪一个
     @Published private(set) var exerciseIndex: Int
 
@@ -86,7 +87,7 @@ final class EyeBreakModel: ObservableObject {
     /// 距离上次键盘鼠标操作过去的秒数
     private let idleTime: () -> TimeInterval
     /// 是否正在开会（麦克风被任意 App 使用）
-    private let isInMeeting: () -> Bool
+    private let isInMeeting: @MainActor () -> Bool
     /// 是否正在全屏使用某个 App
     private let isFullscreen: @MainActor () -> Bool
     /// 当前是否在工作时段内（未启用工作时段时恒为 true）
@@ -127,8 +128,9 @@ final class EyeBreakModel: ObservableObject {
         reminder: ReminderDelivering,
         now: @escaping () -> Date = Date.init,
         idleTime: @escaping () -> TimeInterval = SystemIdle.seconds,
-        isInMeeting: @escaping () -> Bool = MeetingDetector.isInMeeting,
-        isFullscreen: @escaping @MainActor () -> Bool = FullscreenDetector.isFrontmostAppFullscreen,
+        // 系统检测较重（枚举音频设备、复制窗口列表），每 5 秒最多真正检测一次
+        isInMeeting: @escaping @MainActor () -> Bool = ThrottledCheck(every: 5, MeetingDetector.isInMeeting).value,
+        isFullscreen: @escaping @MainActor () -> Bool = ThrottledCheck(every: 5, FullscreenDetector.isFrontmostAppFullscreen).value,
         isWorkTime: @escaping () -> Bool = { true },
         awayThreshold: TimeInterval = EyeBreakConfig.awayThreshold,
         snoozeInterval: TimeInterval = EyeBreakConfig.snoozeInterval,
@@ -252,11 +254,14 @@ final class EyeBreakModel: ObservableObject {
         isFocusHold = hold
     }
 
-    /// 稍后提醒：收起提醒，过一会儿（默认 5 分钟，不超过专注时长）再提醒一次。
+    /// 实际的稍后提醒时长：默认 5 分钟，不超过专注时长
+    var effectiveSnoozeInterval: TimeInterval { min(snoozeInterval, workInterval) }
+
+    /// 稍后提醒：收起提醒，过一会儿再提醒一次。
     func snooze() {
         guard phase == .awaitingBreak else { return }
         reminder.cancelPendingReminders()
-        let interval = min(snoozeInterval, workInterval)
+        let interval = effectiveSnoozeInterval
         beginWorking(remaining: interval, roundTotal: interval, snoozing: true)
     }
 
@@ -313,7 +318,7 @@ final class EyeBreakModel: ObservableObject {
         case .away: saved = .away
         case .offHours: saved = .offHours
         }
-        return Snapshot(phase: saved, remaining: remaining, savedAt: now())
+        return Snapshot(phase: saved, remaining: remaining, savedAt: now(), overridesSchedule: overridesSchedule)
     }
 
     /// 启动时恢复上次退出前的状态。离开超过离开阈值（例如重启电脑）视为已经休息过。
@@ -321,6 +326,7 @@ final class EyeBreakModel: ObservableObject {
         guard phase == .idle else { return }
         let elapsed = max(0, now().timeIntervalSince(snapshot.savedAt))
         let wasAwayLong = elapsed >= awayThreshold
+        overridesSchedule = snapshot.overridesSchedule ?? false
         switch snapshot.phase {
         case .idle:
             return
@@ -365,8 +371,9 @@ final class EyeBreakModel: ObservableObject {
 
         switch phase {
         case .working, .awaitingBreak:
-            // 休息中不检测：眺望时本来就不碰键鼠；开会时盯着屏幕但可能很久不碰键鼠，也不算离开
-            if idleTime() >= awayThreshold, currentDeferReason() == nil {
+            // 休息中不检测：眺望时本来就不碰键鼠；开会、全屏时盯着屏幕但可能很久不碰键鼠，也不算离开。
+            // 专注模式不代表人在看屏幕，所以不影响离开判断
+            if idleTime() >= awayThreshold, !isInMeeting(), !isFullscreen() {
                 enterAway()
                 return
             }

@@ -9,9 +9,21 @@ final class IntentHub {
 
 enum EyeBreakIntentError: Error, CustomLocalizedStringResourceConvertible {
     case notRunning
+    case alreadyFocusing
+    case onBreak
+    case notFocusing
+    case alreadyResting
+    case notOnBreak
 
     var localizedStringResource: LocalizedStringResource {
-        "EyeBreak 还没有启动"
+        switch self {
+        case .notRunning: return "EyeBreak 还没有启动"
+        case .alreadyFocusing: return "已经在专注中"
+        case .onBreak: return "现在是休息时间，可以先开始或跳过休息"
+        case .notFocusing: return "现在没有在专注计时"
+        case .alreadyResting: return "已经在休息中"
+        case .notOnBreak: return "现在不在休息时间"
+        }
     }
 }
 
@@ -29,7 +41,12 @@ struct StartFocusIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        try runningModel().start()
+        let model = try runningModel()
+        switch model.phase {
+        case .working: throw EyeBreakIntentError.alreadyFocusing
+        case .awaitingBreak, .resting: throw EyeBreakIntentError.onBreak
+        case .idle, .paused, .away, .offHours: model.start()
+        }
         return .result()
     }
 }
@@ -40,7 +57,9 @@ struct PauseTimerIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        try runningModel().pause()
+        let model = try runningModel()
+        guard model.phase == .working else { throw EyeBreakIntentError.notFocusing }
+        model.pause()
         return .result()
     }
 }
@@ -51,7 +70,9 @@ struct StartBreakIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        try runningModel().startBreakNow()
+        let model = try runningModel()
+        guard model.phase != .resting else { throw EyeBreakIntentError.alreadyResting }
+        model.startBreakNow()
         return .result()
     }
 }
@@ -62,7 +83,9 @@ struct SkipBreakIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        try runningModel().skipBreak()
+        let model = try runningModel()
+        guard model.isOnBreak else { throw EyeBreakIntentError.notOnBreak }
+        model.skipBreak()
         return .result()
     }
 }

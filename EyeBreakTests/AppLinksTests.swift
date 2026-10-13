@@ -12,7 +12,7 @@ struct AppLinksTests {
         let body = try #require(components.queryItems?.first { $0.name == "body" }?.value)
         #expect(body.contains("EyeBreak：1.3 (40)"))
         #expect(body.contains("macOS：Version 27.0 (Build 27A1)"))
-        #expect(body.contains("芯片："))
+        #expect(body.contains(String(localized: "芯片") + "："))
     }
 
     @Test("第三方许可声明随 App 一起分发，并包含 Sparkle 的许可")

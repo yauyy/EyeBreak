@@ -127,7 +127,7 @@ struct EyeBreakModelTests {
         #expect(model.menuBarText == "5:00")
         model.start()
         advance(5 * 60)
-        #expect(model.menuBarText == "休息")
+        #expect(model.menuBarText == String(localized: "休息"))
         model.startBreak()
         advance(8)
         #expect(model.menuBarText == "0:12")
@@ -547,7 +547,7 @@ struct EyeBreakModelTests {
         clock.inMeeting = true
         advance(20 * 60)
         #expect(model.phase == .working)
-        #expect(model.isDeferredForMeeting)
+        #expect(model.deferReason == .meeting)
         #expect(model.formattedRemaining == "00:00")
         #expect(spy.delivered.isEmpty)
 
@@ -557,7 +557,7 @@ struct EyeBreakModelTests {
         clock.inMeeting = false
         advance(1)
         #expect(model.phase == .awaitingBreak)
-        #expect(!model.isDeferredForMeeting)
+        #expect(model.deferReason == nil)
         #expect(spy.delivered.count == 1)
     }
 
@@ -642,6 +642,42 @@ struct EyeBreakModelTests {
         advance(1)
         #expect(model.phase == .awaitingBreak)
         #expect(spy.delivered.count == 1)
+    }
+
+    @Test("专注模式期间离开电脑：照常判定为离开")
+    func focusHoldDoesNotBlockAway() {
+        model.start()
+        model.setFocusHold(true)
+        clock.idle = 30 * 60
+        advance(1)
+        #expect(model.phase == .away)
+    }
+
+    @Test("稍后提醒的实际时长不超过专注时长")
+    func effectiveSnoozeInterval() {
+        #expect(model.effectiveSnoozeInterval == 5 * 60)
+        model.setWorkInterval(3 * 60)
+        #expect(model.effectiveSnoozeInterval == 3 * 60)
+    }
+
+    @Test("工作时段外手动开始后重启 App：恢复后不会被重新冻结")
+    func overrideSurvivesRelaunch() {
+        model.start()
+        clock.workTime = false
+        advance(1)
+        model.start()
+        advance(60)
+        let snapshot = model.snapshot()
+        clock.advance(10)
+        let clock = clock
+        let reopened = EyeBreakModel(
+            workInterval: 20 * 60, restDuration: 20, reminder: spy,
+            now: { clock.now }, idleTime: { 0 }, isInMeeting: { false }, isFullscreen: { false },
+            isWorkTime: { clock.workTime }, awayThreshold: 5 * 60, usesSystemTimer: false
+        )
+        reopened.restore(snapshot)
+        reopened.tick()
+        #expect(reopened.phase == .working)
     }
 
     // MARK: - 工作时段

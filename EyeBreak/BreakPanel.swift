@@ -222,7 +222,7 @@ struct BreakChoices: View {
     }
 
     private var snoozeTitle: String {
-        let seconds = Int(min(EyeBreakConfig.snoozeInterval, model.workInterval))
+        let seconds = Int(model.effectiveSnoozeInterval)
         return seconds >= 60 ? String(localized: "\(seconds / 60) 分钟后") : String(localized: "\(seconds) 秒后")
     }
 }
