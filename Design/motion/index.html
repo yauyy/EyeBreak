@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EyeBreak · 番茄仔护眼动作</title>
+  <style>
+    :root { color-scheme: light; font-family: ui-rounded, "PingFang SC", system-ui, sans-serif; color: #4A3428; background: #FFF3E8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 36px 28px; }
+    main { width: max-content; min-width: 1032px; margin: auto; }
+    h1 { margin: 0 0 10px; font-size: 28px; }
+    h2 { margin: 28px 0 12px; font-size: 18px; }
+    p { margin: 8px 0; color: #795B4B; line-height: 1.7; }
+    .row { display: grid; grid-template-columns: repeat(4, 240px); gap: 24px; }
+    figure { margin: 0; text-align: center; background: #FFFDF8; border: 2px solid #EEDAC9; border-radius: 24px; overflow: hidden; }
+    canvas { display: block; width: 240px; height: 240px; margin: -2px -2px 0; }
+    figcaption { padding: 0 8px 18px; font-size: 17px; font-weight: 650; }
+    small { display: block; margin-top: 5px; color: #795B4B; font-size: 12px; font-weight: 400; }
+    code { background: #F5E5D6; border-radius: 5px; padding: 2px 5px; }
+    details { max-width: 1032px; margin-top: 28px; line-height: 1.8; }
+    summary { cursor: pointer; font-weight: 600; }
+    #status { min-height: 28px; }
+  </style>
+  <script src="tomato-motion.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>番茄仔 · 一起休息眼睛</h1>
+    <p id="status" role="status">四个动作同步计时、循环播放。添加 <code>?still=1.8</code> 可停在指定秒数。</p>
+    <h2>动作演示</h2>
+    <section class="row" aria-label="循环动作演示">
+      <figure><canvas width="240" height="240" data-motion="lookFar" aria-label="手搭凉棚，慢慢望向右上方"></canvas><figcaption>看看远处<small>4 秒 · 望向右上，停留，再回来</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="blink" aria-label="有节奏地眨眼，偶尔连眨"></canvas><figcaption>眨眨眼<small>约 2 秒一次 · 偶尔连眨两下</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="closeEyes" aria-label="双手轻捂眼睛外侧，露出闭眼弧线，轻轻呼吸"></canvas><figcaption>闭眼放松<small>4 秒 · 轻捂眼睛外侧，轻轻呼吸</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="rollEyes" aria-label="眼珠跟着带手臂的小手顺时针画圈"></canvas><figcaption>转转眼球<small>3 秒 · 眼珠跟着小手画圈</small></figcaption></figure>
+    </section>
+    <h2>减少动态效果 · 静止代表帧</h2>
+    <section class="row" aria-label="减少动态效果的静止代表帧">
+      <figure><canvas width="240" height="240" data-motion="lookFar" data-reduced aria-label="远眺代表帧"></canvas><figcaption>看看远处<small>抬手遮阳，眼珠望向右上</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="blink" data-reduced aria-label="眨眼代表帧"></canvas><figcaption>眨眨眼<small>上眼皮落下，停在闭合时刻</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="closeEyes" data-reduced aria-label="双手捂在外侧且看得见闭眼的代表帧"></canvas><figcaption>闭眼放松<small>双手捂在外侧，闭眼弧线和小嘴清楚可见</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="rollEyes" data-reduced aria-label="转眼代表帧"></canvas><figcaption>转转眼球<small>保留手臂和奶油白描边圆点轨迹</small></figcaption></figure>
+    </section>
+    <details>
+      <summary>设计与实现约定</summary>
+      <p>模块划分：本页和 tomato-motion.js 提供离线设计预览；App 的 TomatoCharacter.swift 使用相同坐标、配色和时间公式。</p>
+      <p>接口与交互：保留 motion、size；App 可选 time 参数用于固定帧对照。上排遵循系统的减少动态效果设置，下排始终显示代表帧。?still 参数只固定上排时间，下排仍保留与 App 相同的各动作代表帧。</p>
+      <p>后台数据库：本次是纯绘制改动，不涉及数据存储或接口。</p>
+      <p>关联影响：BreakPanel 等待开始和休息中共用同一动作组件；RestExercise 映射沿用现有实现。</p>
+      <p>坐标与决策：100×100 坐标系，身体宽 76；手掌宽 16.1、高 14（1.15:1），描边 2.2，按手臂末端方向旋转，远眺手掌固定向下倾 8°。手臂用同一条二次贝塞尔曲线先画 #4A3428、宽 11，再画番茄红 #F0453A、宽 7，端点和转角均为 round。根部固定在身体下半部 (15, 74)、(85, 74)，粗圆端与身体重叠；控制点位于身体外侧，形成一根实心弯胳膊。图层依次为身体、叶子、脸、胳膊、轨迹、手掌。</p>
+      <p>远眺手中心 (68 + 2.8g, 43 − 3.7g)，右臂从 (85, 74) 经控制点 (98, 58) 抬起；手下沿与右眼顶部留约 2～3 间隙，眼珠和白色高光同步移动 (3g, −3g)，身体绕 (50, 93) 向右倾 3.5g°。闭眼双手中心 (26.5, 58 − 0.7b)、(73.5, 58 − 0.7b)，双臂分别从 (15, 74)、(85, 74) 经控制点 (4, 64)、(96, 64) 弯向手掌，只遮闭眼弧线外侧约三分之一，嘴完整露出。g 是远眺缓动进度，b 是呼吸进度。</p>
+      <p>画圈手中心 (83 + 7cosθ, 48 + 8sinθ)，右臂根部 (85, 74) 和控制点 (98, 58) 固定，末端跟随手移动，手掌随手臂方向转动；眼珠画圈半径 3，白色高光同步移动，方向与手相同。轨迹用奶油白填充、0.65 深棕描边，逐个变小、变淡。静止代表帧时间仍为远眺 1.8s、眨眼 0.78s、闭眼 0s、转眼 1.5s，使用相同的新绘制。</p>
+      <p>验收点：可用 ?still=0、1、2、3 对照固定帧，画圈可补看 0.75、1.5、2.25 秒；检查手臂是实心圆头粗管、根部连接、闭眼弧线露出、远眺手眼间隙、眼珠与高光同步移动、眨眼遮罩、循环衔接、白色圆点，以及 76px 提醒面板的可读性。</p>
+    </details>
+  </main>
+</body>
+</html>

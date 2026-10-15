@@ -167,7 +167,7 @@ private struct BreakPanelView: View {
 
     private var awaiting: some View {
         VStack(spacing: 0) {
-            BobbingTomato(size: 76)
+            TomatoCharacter(motion: model.exercise.motion, size: 76)
             Text("休息一下眼睛吧")
                 .font(Theme.font(19, .bold))
                 .foregroundStyle(Theme.ink)
@@ -224,20 +224,6 @@ struct BreakChoices: View {
     private var snoozeTitle: String {
         let seconds = Int(model.effectiveSnoozeInterval)
         return seconds >= 60 ? String(localized: "\(seconds / 60) 分钟后") : String(localized: "\(seconds) 秒后")
-    }
-}
-
-/// 轻轻上下浮动的番茄仔
-private struct BobbingTomato: View {
-    var size: CGFloat
-    @State private var up = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        TomatoAvatar(size: size)
-            .offset(y: reduceMotion ? 0 : (up ? -4 : 3))
-            .animation(reduceMotion ? nil : .easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: up)
-            .onAppear { up = true }
     }
 }
 
