@@ -7,7 +7,9 @@ struct EyeBreakApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra(isInserted: _appDelegate.projectedValue.isMenuBarInserted) {
+        // 菜单栏图标在启动时就插入。1.5.2 曾用 isInserted 绑定延迟插入，但 App 场景不会观察
+        // AppDelegate 的发布值，导致图标始终不出现；语言切换重新打开时允许新旧图标短暂并存。
+        MenuBarExtra {
             MenuContentView(
                 model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin,
                 stats: appDelegate.stats, sounds: appDelegate.sounds,
@@ -25,8 +27,7 @@ struct EyeBreakApp: App {
 /// 计时模型、提示音和休息面板由 AppDelegate 持有，生命周期等同于进程，
 /// 与菜单面板是否打开无关——关闭面板不会停止计时。
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    @Published var isMenuBarInserted = false
+final class AppDelegate: NSObject, NSApplicationDelegate {
     let appearance: AppearanceSettings
     let language: LanguageSettings
     let model: EyeBreakModel
@@ -92,7 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             currentProcessID: ProcessInfo.processInfo.processIdentifier
         ) {
             // 先完成 App 启动，旧实例才能收到 NSWorkspace 的成功回调并退出。
-            // 退出之前不插入 MenuBarExtra，也不恢复快照或启动 Sparkle。
+            // 退出之前不恢复快照、不启动 Sparkle，避免读到旧实例尚未写完的计时状态。
             startupTask = Task { [weak self] in
                 let exited = await RelaunchHandoff.waitForExit(processID: previousPID) { pid in
                     guard let previous = NSRunningApplication(processIdentifier: pid), !previous.isTerminated else { return false }
@@ -100,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 }
                 guard !Task.isCancelled, let self else { return }
                 guard exited else {
-                    // 旧进程未正常退出时撤销接管；新实例始终不会留下第二个菜单栏图标。
+                    // 旧进程未正常退出时撤销接管，新实例退出，避免长期留下第二个菜单栏图标。
                     NSApp.terminate(nil)
                     return
                 }
@@ -131,7 +132,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
         // 先恢复再开始保存，避免启动时的初始状态覆盖掉上次的快照
         model.onSnapshot = { EyeBreakConfig.saveSnapshot($0) }
-        isMenuBarInserted = true
         updates.start()
         installShortcuts()
         if shouldShowOnboarding { showOnboarding() }
