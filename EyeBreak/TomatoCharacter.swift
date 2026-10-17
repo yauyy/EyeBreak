@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 与图标同款画风的番茄仔，在 100×100 坐标系里演示护眼动作。
 struct TomatoCharacter: View {
-    enum Motion: Sendable {
+    enum Motion: CaseIterable, Equatable, Sendable {
         case still
         /// 抬手遮阳，望向右上方远处
         case lookFar
@@ -18,20 +18,94 @@ struct TomatoCharacter: View {
     var size: CGFloat
     /// 指定秒数可固定帧，便于与离线预览页逐帧对照；默认跟随时间播放。
     var time: TimeInterval? = nil
+    /// nil 保持无限播放；有限播放在完整周期的末帧静止，避免切换代表帧时跳动。
+    var loops: Int? = nil
+    var replayID: Int = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var startedAt = Date()
+    @State private var hasFinished = true
+    @State private var suppressed = false
+    @State private var stopTask: Task<Void, Never>?
 
     var body: some View {
         // 渲染闭包只捕获可发送的动作值和时间值，不捕获 View 或环境包装器。
         let currentMotion = motion
-        let frozenTime = reduceMotion ? TomatoRenderer.representativeTime(for: currentMotion) : time
-        return TimelineView(.animation(paused: frozenTime != nil || currentMotion == .still)) { timeline in
-            let seconds = frozenTime ?? timeline.date.timeIntervalSinceReferenceDate
+        let representative = TomatoRenderer.representativeTime(for: currentMotion)
+        let frozenTime = reduceMotion ? representative : (time ?? (suppressed ? representative : nil))
+        return TimelineView(.animation(paused: hasFinished || frozenTime != nil || currentMotion == .still)) { timeline in
+            let elapsed = hasFinished ? TomatoPlayback.duration(for: currentMotion, loops: loops) : timeline.date.timeIntervalSince(startedAt)
+            let seconds = frozenTime ?? TomatoPlayback.frame(motion: currentMotion, elapsed: elapsed, loops: loops).time
             Canvas { context, canvasSize in
                 TomatoRenderer.draw(in: context, scale: canvasSize.width / 100, motion: currentMotion, t: seconds)
             }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
+        .onAppear(perform: replay)
+        .onChange(of: motion) { _ in replay() }
+        .onChange(of: replayID) { _ in replay() }
+        .onChange(of: reduceMotion) { reduced in
+            guard reduced else { return }
+            // 关闭系统设置后仍保持本次静止，等待出现、换动作或悬停进入再重播。
+            suppressed = true
+            stop()
+        }
+        .onDisappear(perform: stop)
+    }
+
+    private func replay() {
+        stop()
+        startedAt = Date()
+        suppressed = reduceMotion
+        guard time == nil, !reduceMotion, motion != .still else { return }
+        let initial = TomatoPlayback.frame(motion: motion, elapsed: 0, loops: loops)
+        hasFinished = initial.isFinished
+        guard !hasFinished, loops != nil else { return }
+        let duration = TomatoPlayback.duration(for: motion, loops: loops)
+        // 每次播放只有一次结束唤醒；倒计时及其他模型刷新不会重新创建任务。
+        stopTask = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(duration)) }
+            catch { return }
+            guard !Task.isCancelled else { return }
+            hasFinished = true
+            stopTask = nil
+        }
+    }
+
+    private func stop() {
+        stopTask?.cancel()
+        stopTask = nil
+        hasFinished = true
+    }
+}
+
+/// 相对播放时间到绘制时间的纯计算；有限播放钳制在周期边界，减少动态优先取代表帧。
+enum TomatoPlayback {
+    struct Frame: Equatable, Sendable {
+        let time: TimeInterval
+        let isFinished: Bool
+    }
+
+    nonisolated static func cycleDuration(for motion: TomatoCharacter.Motion) -> TimeInterval {
+        switch motion {
+        case .still: return 0
+        case .lookFar, .closeEyes: return 4
+        case .blink: return 6.4
+        case .rollEyes: return 3
+        }
+    }
+
+    nonisolated static func duration(for motion: TomatoCharacter.Motion, loops: Int?) -> TimeInterval {
+        cycleDuration(for: motion) * Double(max(0, loops ?? 0))
+    }
+
+    nonisolated static func frame(motion: TomatoCharacter.Motion, elapsed: TimeInterval, loops: Int?, reduceMotion: Bool = false) -> Frame {
+        if reduceMotion { return Frame(time: TomatoRenderer.representativeTime(for: motion), isFinished: true) }
+        if motion == .still { return Frame(time: 0, isFinished: true) }
+        let elapsed = max(0, elapsed)
+        guard loops != nil else { return Frame(time: elapsed, isFinished: false) }
+        let end = duration(for: motion, loops: loops)
+        return Frame(time: min(elapsed, end), isFinished: elapsed >= end)
     }
 }
 
@@ -69,7 +143,8 @@ private enum TomatoRenderer {
     }
 
     nonisolated private static func circleAngle(_ t: Double) -> Double {
-        -.pi / 2 + 2 * .pi * ease(phase(t, duration: 3) / 3)
+        let duration = TomatoPlayback.cycleDuration(for: .rollEyes)
+        return -.pi / 2 + 2 * .pi * ease(phase(t, duration: duration) / duration)
     }
 
     nonisolated private static func frame(motion: TomatoCharacter.Motion, t: Double) -> Frame {
@@ -78,7 +153,7 @@ private enum TomatoRenderer {
         case .still:
             break
         case .lookFar:
-            let p = phase(t, duration: 4)
+            let p = phase(t, duration: TomatoPlayback.cycleDuration(for: .lookFar))
             if p < 1.2 {
                 state.gaze = ease(p / 1.2)
             } else if p < 2.3 {
@@ -90,7 +165,7 @@ private enum TomatoRenderer {
             state.lookY = -3 * state.gaze
         case .blink:
             // 每约两秒一次；6.4 秒循环内的最后一次补眨一下。
-            let p = phase(t, duration: 6.4)
+            let p = phase(t, duration: TomatoPlayback.cycleDuration(for: .blink))
             for start in [0.65, 2.65, 4.65, 5.03] {
                 let d = p - start
                 let closure: Double
@@ -104,7 +179,8 @@ private enum TomatoRenderer {
                 state.closure = max(state.closure, closure)
             }
         case .closeEyes:
-            state.breath = (1 - cos(2 * .pi * phase(t, duration: 4) / 4)) / 2
+            let duration = TomatoPlayback.cycleDuration(for: .closeEyes)
+            state.breath = (1 - cos(2 * .pi * phase(t, duration: duration) / duration)) / 2
         case .rollEyes:
             state.angle = circleAngle(t)
             state.lookX = 3 * cos(state.angle)

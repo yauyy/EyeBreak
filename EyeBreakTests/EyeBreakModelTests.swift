@@ -3,6 +3,37 @@ import Foundation
 import Testing
 @testable import EyeBreak
 
+struct EnabledExercisesConfigTests {
+    @Test("新安装未保存动作偏好时默认全部开启")
+    func defaultsToAllExercises() {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == Set(RestExercise.allCases))
+    }
+
+    @Test("动作偏好保存后读取一致，不写入其它偏好")
+    func savedExercisesRoundTrip() {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        EyeBreakConfig.saveEnabledExercises([.blink, .closeEyes], to: defaults)
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.blink, .closeEyes])
+        #expect(Set((defaults.persistentDomain(forName: suiteName) ?? [:]).keys) == ["enabledExercises"])
+    }
+
+    @Test("持久化全关或未知动作时回退为只有看看远处", arguments: [[], [99]])
+    func emptyOrUnknownExercisesFallBack(saved: [Int]) {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(saved, forKey: "enabledExercises")
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.lookFar])
+        EyeBreakConfig.saveEnabledExercises([], to: defaults)
+        #expect(defaults.array(forKey: "enabledExercises") as? [Int] == [RestExercise.lookFar.rawValue])
+    }
+}
+
 @MainActor
 private final class SpyReminder: ReminderDelivering {
     var delivered: [TimeInterval] = []
@@ -628,6 +659,101 @@ struct EyeBreakModelTests {
         #expect(seen == [.lookFar, .blink, .closeEyes, .rollEyes, .lookFar])
     }
 
+    @Test("动作轮换跳过关闭的动作，按原有顺序循环启用项")
+    func exercisesSkipDisabledChoices() {
+        model.setEnabledExercises([.blink, .rollEyes])
+        var seen: [RestExercise] = []
+        model.start()
+        for _ in 0..<5 {
+            advance(20 * 60)
+            seen.append(model.exercise)
+            model.skipBreak()
+        }
+        #expect(seen == [.blink, .rollEyes, .blink, .rollEyes, .blink])
+    }
+
+    @Test("模型读到全关动作时回退为只有看看远处")
+    func disabledExercisesFallBackToLookFar() {
+        let clock = clock
+        let fallback = EyeBreakModel(
+            workInterval: 60, restDuration: 20, reminder: spy,
+            now: { clock.now }, idleTime: { 0 }, isInMeeting: { false }, isFullscreen: { false },
+            exerciseIndex: 1, enabledExercises: [], usesSystemTimer: false
+        )
+        #expect(fallback.enabledExercises == [.lookFar])
+        fallback.startBreakNow()
+        #expect(fallback.exercise == .lookFar)
+
+        model.setEnabledExercises([.blink])
+        model.setEnabledExercises([])
+        #expect(model.enabledExercises == [.lookFar])
+        model.startBreakNow()
+        #expect(model.exercise == .lookFar)
+    }
+
+    @Test("动作开关变化通知持久化，重复设置不重复保存")
+    func exercisePreferencesNotifyPersistence() {
+        var saved: [Set<RestExercise>] = []
+        model.onEnabledExercisesChanged = { saved.append($0) }
+        model.setExercise(.blink, enabled: false)
+        model.setExercise(.blink, enabled: false)
+        #expect(saved == [[.lookFar, .closeEyes, .rollEyes]])
+        model.setExercise(.blink, enabled: true)
+        #expect(saved.last == Set(RestExercise.allCases))
+    }
+
+    @Test("首次提醒后修改动作开关，等待、稍后提醒和本次休息的动作都不变")
+    func exercisePreferencesDoNotChangeCurrentReminder() {
+        finishWorkRound()
+        #expect(model.exercise == .lookFar)
+        model.setEnabledExercises([.blink])
+        #expect(model.exercise == .lookFar)
+        model.snooze()
+        #expect(model.exercise == .lookFar)
+        advance(300)
+        #expect(model.exercise == .lookFar)
+        model.startBreak()
+        model.setEnabledExercises([.closeEyes])
+        #expect(model.exercise == .lookFar)
+        advance(20)
+        advance(20 * 60)
+        #expect(model.exercise == .closeEyes)
+    }
+
+    @Test("稍后提醒期间现在休息继续原动作，暂停后也一样", arguments: [false, true])
+    func startBreakNowWhileSnoozingKeepsExercise(paused: Bool) {
+        finishWorkRound()
+        let exercise = model.exercise
+        model.snooze()
+        model.setEnabledExercises([.blink])
+        advance(60)
+        if paused { model.pause() }
+        let remindersBeforeBreak = spy.delivered.count
+        model.startBreakNow()
+        #expect(model.phase == .resting)
+        #expect(model.exercise == exercise)
+        #expect(spy.delivered.count == remindersBeforeBreak)
+    }
+
+    @Test("稍后提醒后离开或进入非工作时段，再手动休息时选择新动作", arguments: [false, true])
+    func startBreakNowAfterSnoozeRoundEndedChoosesNextExercise(offHours: Bool) {
+        finishWorkRound()
+        #expect(model.exercise == .lookFar)
+        model.snooze()
+        if offHours {
+            clock.workTime = false
+        } else {
+            clock.idle = 5 * 60
+        }
+        advance(1)
+        #expect(model.phase == (offHours ? .offHours : .away))
+
+        model.startBreakNow()
+        #expect(model.phase == .resting)
+        #expect(model.exercise == .blink)
+        #expect(spy.delivered.count == 1)
+    }
+
     @Test("稍后提醒再次到点时，休息内容保持不变")
     func snoozeKeepsExercise() {
         finishWorkRound()
@@ -744,6 +870,77 @@ struct EyeBreakModelTests {
         #expect(model.formattedRemaining == "00:15")
     }
 
+    @Test("推迟状态现在休息直接进入休息并清除原因，不经过等待休息", arguments: ["meeting", "fullscreen", "focus"])
+    func startBreakNowWhileDeferred(reason: String) {
+        model.setEnabledExercises([.blink])
+        model.start()
+        switch reason {
+        case "meeting": clock.inMeeting = true
+        case "fullscreen": clock.fullscreen = true
+        default: model.setFocusHold(true)
+        }
+        advance(20 * 60)
+        #expect(model.phase == .working)
+        #expect(model.deferReason != nil)
+        var phases: [EyeBreakModel.Phase] = []
+        let subscription = model.$phase.dropFirst().sink { phases.append($0) }
+        defer { subscription.cancel() }
+
+        model.startBreakNow()
+        #expect(model.phase == .resting)
+        #expect(model.deferReason == nil)
+        #expect(model.exercise == .blink)
+        #expect(phases == [.resting])
+        #expect(spy.delivered.isEmpty)
+        #expect(model.remainingSeconds == 20)
+    }
+
+    @Test("推迟期间暂停清除原因，继续后重新判断提醒", arguments: ["meeting", "fullscreen", "focus"])
+    func pauseWhileDeferred(reason: String) {
+        clock.inMeeting = reason == "meeting"
+        clock.fullscreen = reason == "fullscreen"
+        model.setFocusHold(reason == "focus")
+        model.start()
+        advance(20 * 60)
+        #expect(model.deferReason != nil)
+
+        model.pause()
+        #expect(model.phase == .paused)
+        #expect(model.deferReason == nil)
+        advance(600)
+        #expect(model.phase == .paused)
+        #expect(model.deferReason == nil)
+        #expect(spy.delivered.isEmpty)
+
+        model.start()
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.deferReason != nil)
+        clock.inMeeting = false
+        clock.fullscreen = false
+        model.setFocusHold(false)
+        advance(1)
+        #expect(model.phase == .awaitingBreak)
+        #expect(model.deferReason == nil)
+        #expect(spy.delivered.count == 1)
+    }
+
+    @Test("稍后提醒被推迟时现在休息仍保留首次提醒的动作")
+    func startBreakNowWhileDeferredSnoozeKeepsExercise() {
+        finishWorkRound()
+        let exercise = model.exercise
+        model.snooze()
+        model.setEnabledExercises([.blink])
+        clock.inMeeting = true
+        advance(300)
+        #expect(model.deferReason == .meeting)
+        model.startBreakNow()
+        #expect(model.phase == .resting)
+        #expect(model.deferReason == nil)
+        #expect(model.exercise == exercise)
+        #expect(spy.delivered.count == 1)
+    }
+
     @Test("专注模式要求暂停时：到点的提醒推迟到专注模式结束")
     func focusHoldDefersReminder() {
         model.start()
@@ -794,6 +991,171 @@ struct EyeBreakModelTests {
     }
 
     // MARK: - 工作时段
+
+    @Test("只有工作时段外使用 30 秒间隔，其余阶段保持 1 秒")
+    func tickIntervalsByPhase() {
+        #expect(EyeBreakModel.tickInterval(for: .offHours) == 30)
+        for phase: EyeBreakModel.Phase in [.idle, .working, .paused, .awaitingBreak, .resting, .away] {
+            #expect(EyeBreakModel.tickInterval(for: phase) == 1)
+        }
+    }
+
+    /// 使用假时钟检查真实 Timer 的安装和销毁，全程同步执行，不等待系统计时器触发。
+    private func makeSystemTimerModel() -> EyeBreakModel {
+        let clock = clock
+        return EyeBreakModel(
+            workInterval: 20 * 60, restDuration: 20, reminder: spy,
+            now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting },
+            isFullscreen: { clock.fullscreen }, isWorkTime: { clock.workTime }, awayThreshold: 5 * 60
+        )
+    }
+
+    @Test("进出工作时段外重建唯一 Timer，稳定阶段不重复安装")
+    func offHoursRebuildsOnlyOneTimer() {
+        let timedModel = makeSystemTimerModel()
+        defer { timedModel.shutdown() }
+        #expect(timedModel.activeTimerCount == 0)
+        timedModel.startAutomatically()
+        #expect(timedModel.activeTimerInterval == 1)
+        #expect(timedModel.tickerStartCount == 1)
+        for transition in 1...3 {
+            clock.workTime = false
+            timedModel.tick()
+            #expect(timedModel.phase == .offHours)
+            #expect(timedModel.activeTimerCount == 1)
+            #expect(timedModel.activeTimerInterval == 30)
+            #expect(timedModel.tickerStartCount == transition * 2)
+            clock.advance(30)
+            timedModel.tick()
+            #expect(timedModel.tickerStartCount == transition * 2)
+
+            clock.workTime = true
+            timedModel.tick()
+            #expect(timedModel.phase == .working)
+            #expect(timedModel.activeTimerCount == 1)
+            #expect(timedModel.activeTimerInterval == 1)
+            #expect(timedModel.tickerStartCount == transition * 2 + 1)
+            timedModel.tick()
+            #expect(timedModel.tickerStartCount == transition * 2 + 1)
+        }
+        timedModel.shutdown()
+        #expect(timedModel.activeTimerCount == 0)
+        #expect(timedModel.activeTimerInterval == nil)
+    }
+
+    @Test("离开电脑仍使用 1 秒检查，最近 3 秒输入能够恢复专注")
+    func awayKeepsOneSecondTimer() {
+        let timedModel = makeSystemTimerModel()
+        defer { timedModel.shutdown() }
+        timedModel.start()
+        clock.idle = 600
+        timedModel.tick()
+        #expect(timedModel.phase == .away)
+        #expect(timedModel.activeTimerCount == 1)
+        #expect(timedModel.activeTimerInterval == 1)
+        clock.idle = 2.9
+        timedModel.tick()
+        #expect(timedModel.phase == .working)
+        #expect(timedModel.activeTimerInterval == 1)
+    }
+
+    @Test("系统时钟和时区通知立即退出工作时段外，无需等待 30 秒", arguments: [
+        Notification.Name.NSSystemClockDidChange, .NSSystemTimeZoneDidChange
+    ])
+    func timeNotificationsImmediatelyRecalculateSchedule(notification: Notification.Name) {
+        let timedModel = makeSystemTimerModel()
+        defer { timedModel.shutdown() }
+        clock.workTime = false
+        timedModel.startAutomatically()
+        timedModel.tick()
+        #expect(timedModel.phase == .offHours)
+        #expect(timedModel.activeTimerInterval == 30)
+
+        clock.workTime = true
+        NotificationCenter.default.post(name: notification, object: nil)
+        #expect(timedModel.phase == .working)
+        #expect(timedModel.remainingSeconds == 1200)
+        #expect(timedModel.activeTimerCount == 1)
+        #expect(timedModel.activeTimerInterval == 1)
+
+        // 仍在工作时段的重复通知只刷新状态，不再创建计时器。
+        let starts = timedModel.tickerStartCount
+        NotificationCenter.default.post(name: notification, object: nil)
+        #expect(timedModel.tickerStartCount == starts)
+    }
+
+    @Test("工作时段外唤醒立即恢复新一轮专注")
+    func wakeImmediatelyRecalculatesOffHours() {
+        clock.workTime = false
+        model.startAutomatically()
+        model.tick()
+        #expect(model.phase == .offHours)
+        model.systemWillSleep()
+        clock.advance(60)
+        clock.workTime = true
+        model.systemDidWake()
+        #expect(model.phase == .working)
+        #expect(model.remainingSeconds == 1200)
+        #expect(!model.isOverridingSchedule)
+    }
+
+    @Test("修改工作时段后同步读取新设置并恢复专注，不重复通知")
+    func scheduleSettingsImmediatelyRecalculate() {
+        let suiteName = "EyeBreakTests.scheduleChange.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = WorkScheduleSettings(defaults: defaults)
+        // 假时钟位于 UTC 13 点，9 点至 10 点的设置使模型进入工作时段外。
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        settings.schedule = WorkSchedule(isEnabled: true, startHour: 9, endHour: 10, weekdaysOnly: false)
+        let clock = clock
+        let scheduledModel = EyeBreakModel(
+            workInterval: 1200, restDuration: 20, reminder: spy,
+            now: { clock.now }, idleTime: { 0 }, isInMeeting: { false }, isFullscreen: { false },
+            isWorkTime: { settings.schedule.contains(clock.now, calendar: calendar) }, usesSystemTimer: false
+        )
+        var changes = 0
+        settings.onScheduleChanged = { [weak scheduledModel] in
+            changes += 1
+            scheduledModel?.workScheduleDidChange()
+        }
+        scheduledModel.startAutomatically()
+        scheduledModel.tick()
+        #expect(scheduledModel.phase == .offHours)
+
+        settings.schedule.isEnabled = false
+        #expect(changes == 1)
+        #expect(scheduledModel.phase == .working)
+        #expect(scheduledModel.remainingSeconds == 1200)
+        #expect(!WorkScheduleSettings(defaults: defaults).schedule.isEnabled)
+        settings.schedule.isEnabled = false
+        #expect(changes == 1)
+    }
+
+    @Test("手动覆盖工作时段后，时间、设置和唤醒重算不会重新冻结")
+    func immediateScheduleChecksPreserveManualOverride() {
+        clock.workTime = false
+        model.startAutomatically()
+        model.tick()
+        model.start()
+        #expect(model.phase == .working)
+        model.systemTimeDidChange()
+        model.workScheduleDidChange()
+        #expect(model.phase == .working)
+        #expect(model.isOverridingSchedule)
+        model.systemWillSleep()
+        clock.advance(60)
+        model.systemDidWake()
+        #expect(model.phase == .working)
+        #expect(model.isOverridingSchedule)
+        model.pause()
+        model.start()
+        model.workScheduleDidChange()
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.remainingSeconds == 1199)
+    }
 
     @Test("工作时段外从未开始点开始：视为用户覆盖，不被下一次刷新冻结")
     func startFromIdleOutsideWorkHours() {

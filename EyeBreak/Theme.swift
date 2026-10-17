@@ -162,6 +162,16 @@ struct CuteStepper: View {
                 value = min(range.upperBound, value + step)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(title))
+        .accessibilityValue(Text(verbatim: "\(value) \(unit)"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: value = min(range.upperBound, value + step)
+            case .decrement: value = max(range.lowerBound, value - step)
+            @unknown default: break
+            }
+        }
     }
 
     private func roundButton(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
@@ -189,6 +199,7 @@ struct TomatoAvatar: View {
             .interpolation(.high)
             .scaledToFit()
             .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 
@@ -217,6 +228,13 @@ struct CuteToggleStyle: ToggleStyle {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // 自绘外观保留原生开关的角色、标签、开关状态与辅助操作。
+        .accessibilityRepresentation {
+            Toggle(isOn: Binding(get: { configuration.isOn }, set: { configuration.isOn = $0 })) {
+                configuration.label
+            }
+            .toggleStyle(.switch)
+        }
     }
 }
 

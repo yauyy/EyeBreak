@@ -33,8 +33,14 @@ struct WorkSchedule: Codable, Equatable {
 @MainActor
 final class WorkScheduleSettings: ObservableObject {
     @Published var schedule: WorkSchedule {
-        didSet { save() }
+        didSet {
+            save()
+            if schedule != oldValue { onScheduleChanged?() }
+        }
     }
+
+    /// 在新设置已经可读时通知模型，避免 @Published 的 willSet 读到旧时段。
+    var onScheduleChanged: (() -> Void)?
 
     private static let storageKey = "workSchedule"
     private let defaults: UserDefaults

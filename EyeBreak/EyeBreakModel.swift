@@ -77,12 +77,17 @@ final class EyeBreakModel: ObservableObject {
     /// 当前（或即将进行的）休息内容在轮换列表中的序号；每次正常提醒前往后挪一个
     @Published private(set) var exerciseIndex: Int
 
+    /// 只用于选择下一次动作；本次已选中的动作不随设置变化。
+    @Published private(set) var enabledExercises: Set<RestExercise>
+
     var exercise: RestExercise { RestExercise.at(max(0, exerciseIndex)) }
 
     /// 休息倒计时自然结束时发出（提前结束、跳过不算），界面据此播放撒花动画
     let breakCompleted = PassthroughSubject<Void, Never>()
     /// 用户修改了时长设置，交给外部持久化
     var onPreferencesChanged: ((_ workInterval: TimeInterval, _ restDuration: TimeInterval) -> Void)?
+    /// 用户修改了动作设置，交给外部持久化。
+    var onEnabledExercisesChanged: ((Set<RestExercise>) -> Void)?
     /// 计时状态变化（以及专注中定期）时发出快照，交给外部持久化
     var onSnapshot: ((Snapshot) -> Void)?
 
@@ -113,6 +118,10 @@ final class EyeBreakModel: ObservableObject {
     private var pausedRemaining: TimeInterval
     /// 全局唯一的刷新计时器，创建前总会先销毁旧的。
     private var ticker: Timer?
+    /// 只读诊断供测试核对实际安装的计时器，不为假时钟额外创建系统计时器。
+    var activeTimerCount: Int { ticker?.isValid == true ? 1 : 0 }
+    var activeTimerInterval: TimeInterval? { ticker?.isValid == true ? ticker?.timeInterval : nil }
+    private(set) var tickerStartCount = 0
     /// 睡眠前处于专注计时中，唤醒后据此恢复。
     private var resumeAfterWake = false
     /// 睡眠前处于等待休息/休息中：睡眠期间眼睛已离开屏幕，唤醒后直接开始新一轮专注。
@@ -127,6 +136,7 @@ final class EyeBreakModel: ObservableObject {
     private var lastPersistedAt: Date?
     private static let persistInterval: TimeInterval = 30
     private var observers: [NSObjectProtocol] = []
+    private var timeObservers: [NSObjectProtocol] = []
 
     init(
         workInterval: TimeInterval,
@@ -141,9 +151,11 @@ final class EyeBreakModel: ObservableObject {
         awayThreshold: TimeInterval = EyeBreakConfig.awayThreshold,
         snoozeInterval: TimeInterval = EyeBreakConfig.snoozeInterval,
         exerciseIndex: Int = -1,
+        enabledExercises: Set<RestExercise> = Set(RestExercise.allCases),
         usesSystemTimer: Bool = true
     ) {
         self.exerciseIndex = exerciseIndex
+        self.enabledExercises = RestExercise.normalized(enabledExercises)
         self.workInterval = workInterval
         self.restDuration = restDuration
         self.reminder = reminder
@@ -159,11 +171,13 @@ final class EyeBreakModel: ObservableObject {
         self.usesSystemTimer = usesSystemTimer
         pausedRemaining = workInterval
         remainingSeconds = Self.displaySeconds(workInterval)
-        if usesSystemTimer { observeSystemSleep() }
+        if usesSystemTimer { observeSystemEvents() }
     }
 
     var isWorking: Bool { phase == .working }
     var isOnBreak: Bool { phase == .awaitingBreak || phase == .resting }
+    /// 诊断信息只读取覆盖状态，不改变工作时段判断。
+    var isOverridingSchedule: Bool { overridesSchedule }
 
     /// 当前专注轮次的实际总时长，稍后提醒时是推迟的时长。
     var currentRoundTotal: TimeInterval { roundTotal }
@@ -235,6 +249,8 @@ final class EyeBreakModel: ObservableObject {
         guard phase == .working else { return }
         pausedRemaining = currentRemaining()
         deadline = nil
+        // 暂停后不再等待提醒，继续时由下一次 tick 重新判断推迟条件。
+        deferReason = nil
         stopTicker()
         phase = .paused
         updateDisplay()
@@ -265,7 +281,9 @@ final class EyeBreakModel: ObservableObject {
             startBreak()
         case .idle, .working, .paused, .away, .offHours:
             applyUserScheduleOverride()
-            exerciseIndex += 1
+            // 稍后提醒仍属于已经选好动作的同一次休息。
+            let continuesSnoozedBreak = isSnoozing && (phase == .working || phase == .paused)
+            if !continuesSnoozedBreak { selectNextExercise() }
             reminder.cancelPendingReminders()
             deferReason = nil
             beginResting()
@@ -318,6 +336,34 @@ final class EyeBreakModel: ObservableObject {
         onPreferencesChanged?(workInterval, restDuration)
     }
 
+    func setExercise(_ exercise: RestExercise, enabled: Bool) {
+        var exercises = enabledExercises
+        if enabled {
+            exercises.insert(exercise)
+        } else {
+            exercises.remove(exercise)
+        }
+        setEnabledExercises(exercises)
+    }
+
+    /// 全关偏好也由模型兜底；不重新计算本次提醒或休息的动作。
+    func setEnabledExercises(_ exercises: Set<RestExercise>) {
+        let normalized = RestExercise.normalized(exercises)
+        guard normalized != enabledExercises else { return }
+        enabledExercises = normalized
+        onEnabledExercisesChanged?(normalized)
+    }
+
+    /// 设置已经写入后立即重算；手动覆盖仍由原有工作时段规则处理。
+    func workScheduleDidChange() {
+        tick()
+    }
+
+    /// 墙上时钟或时区变化不能等待工作时段外的下一次低频刷新。
+    func systemTimeDidChange() {
+        tick()
+    }
+
     /// 退出前调用：停止计时、撤销提醒、移除系统监听。
     func shutdown() {
         persist()
@@ -331,6 +377,8 @@ final class EyeBreakModel: ObservableObject {
         let center = NSWorkspace.shared.notificationCenter
         observers.forEach(center.removeObserver)
         observers.removeAll()
+        timeObservers.forEach(NotificationCenter.default.removeObserver)
+        timeObservers.removeAll()
     }
 
     // MARK: - 状态保存与恢复
@@ -449,7 +497,7 @@ final class EyeBreakModel: ObservableObject {
             }
             deferReason = nil
             // 稍后提醒再次到点时保持同一个休息内容，其余情况换下一个
-            if !isSnoozing { exerciseIndex += 1 }
+            if !isSnoozing { selectNextExercise() }
             // 先把状态切到"等待休息"并清掉截止时间，再投递提醒：同一轮只可能触发一次，
             // 用户不点「开始休息」时计时保持冻结，也就不会反复提醒。
             // 计时器继续运行，只用于检测用户是否离开。
@@ -539,6 +587,18 @@ final class EyeBreakModel: ObservableObject {
         updateDisplay()
     }
 
+    /// 沿原有顺序找下一个启用动作，最多检查一轮。
+    private func selectNextExercise() {
+        let start = exerciseIndex < 0 ? -1 : exerciseIndex % RestExercise.allCases.count
+        for offset in 1...RestExercise.allCases.count {
+            let candidate = RestExercise.at(start + offset)
+            if enabledExercises.contains(candidate) {
+                exerciseIndex = candidate.rawValue
+                return
+            }
+        }
+    }
+
     /// 开始新一轮专注计时（默认一整轮）
     private func beginWorking(remaining: TimeInterval, roundTotal total: TimeInterval? = nil, snoozing: Bool = false) {
         roundTotal = total ?? workInterval
@@ -580,16 +640,23 @@ final class EyeBreakModel: ObservableObject {
         Int(max(0, (seconds - 0.05).rounded(.up)))
     }
 
+    /// 离开电脑仍须每秒检查，才能捕捉最近 3 秒内的输入；只有工作时段外降频。
+    static func tickInterval(for phase: Phase) -> TimeInterval {
+        phase == .offHours ? 30 : 1
+    }
+
     private func startTicker() {
         stopTicker()
         guard usesSystemTimer else { return }
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+        let interval = Self.tickInterval(for: phase)
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
-        timer.tolerance = 0.1
+        timer.tolerance = interval * 0.1
         // .common 模式：面板打开、菜单追踪时也能继续刷新
         RunLoop.main.add(timer, forMode: .common)
         ticker = timer
+        tickerStartCount += 1
     }
 
     private func stopTicker() {
@@ -617,6 +684,8 @@ final class EyeBreakModel: ObservableObject {
     }
 
     func systemDidWake() {
+        // 无论睡前处于哪个阶段，唤醒都立即重新判断工作时段。
+        defer { _ = checkWorkSchedule() }
         let sleptLong = sleepStartedAt.map { now().timeIntervalSince($0) >= awayThreshold } ?? false
         sleepStartedAt = nil
         if resumeAfterWake {
@@ -637,7 +706,7 @@ final class EyeBreakModel: ObservableObject {
         }
     }
 
-    private func observeSystemSleep() {
+    private func observeSystemEvents() {
         let center = NSWorkspace.shared.notificationCenter
         observers.append(center.addObserver(
             forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
@@ -649,5 +718,11 @@ final class EyeBreakModel: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.systemDidWake() }
         })
+        let timeCenter = NotificationCenter.default
+        for name in [Notification.Name.NSSystemClockDidChange, .NSSystemTimeZoneDidChange] {
+            timeObservers.append(timeCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.systemTimeDidChange() }
+            })
+        }
     }
 }

@@ -4,6 +4,16 @@
     " ": {
       "shouldTranslate": false
     },
+    "%@，剩余 %lld 分 %lld 秒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$lld minutes and %3$lld seconds remaining"
+          }
+        }
+      }
+    },
     "%@，放松 %lld 秒": {
       "localizations": {
         "en": {
@@ -40,6 +50,16 @@
     "+%lld": {
       "shouldTranslate": false
     },
+    "App 版本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App version"
+          }
+        }
+      }
+    },
     "Apple 芯片": {
       "localizations": {
         "en": {
@@ -63,12 +83,52 @@
         }
       }
     },
+    "EyeBreak 使用指南": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EyeBreak Welcome Guide"
+          }
+        }
+      }
+    },
+    "EyeBreak 设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EyeBreak Settings"
+          }
+        }
+      }
+    },
     "EyeBreak 还没有启动": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "EyeBreak isn't running"
+          }
+        }
+      }
+    },
+    "Rosetta 转译": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running under Rosetta"
+          }
+        }
+      }
+    },
+    "macOS 版本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS version"
           }
         }
       }
@@ -89,6 +149,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wed"
+          }
+        }
+      }
+    },
+    "上次检查更新时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last update check"
           }
         }
       }
@@ -129,6 +199,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Focusing"
+          }
+        }
+      }
+    },
+    "专注时长（秒）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus duration (seconds)"
+          }
+        }
+      }
+    },
+    "专注模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus mode"
           }
         }
       }
@@ -253,12 +343,32 @@
         }
       }
     },
+    "休息中，剩余 %lld 秒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resting, %lld seconds remaining"
+          }
+        }
+      }
+    },
     "休息完成！": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Break complete!"
+          }
+        }
+      }
+    },
+    "会议": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting"
           }
         }
       }
@@ -273,12 +383,32 @@
         }
       }
     },
+    "全屏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full screen"
+          }
+        }
+      }
+    },
     "六": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Sat"
+          }
+        }
+      }
+    },
+    "关于": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
           }
         }
       }
@@ -353,6 +483,16 @@
         }
       }
     },
+    "取消": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
     "只在工作时段提醒": {
       "localizations": {
         "en": {
@@ -369,6 +509,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ding"
+          }
+        }
+      }
+    },
+    "否": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No"
+          }
+        }
+      }
+    },
+    "启用的动作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enabled exercises"
           }
         }
       }
@@ -413,6 +573,26 @@
         }
       }
     },
+    "复制诊断信息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy diagnostics"
+          }
+        }
+      }
+    },
+    "工作开始时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Work start time"
+          }
+        }
+      }
+    },
     "工作日": {
       "localizations": {
         "en": {
@@ -423,12 +603,62 @@
         }
       }
     },
+    "工作时段": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schedule"
+          }
+        }
+      }
+    },
     "工作时段外": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Outside work hours"
+          }
+        }
+      }
+    },
+    "工作时段已启用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schedule enabled"
+          }
+        }
+      }
+    },
+    "工作结束时间": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Work end time"
+          }
+        }
+      }
+    },
+    "已关闭": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        }
+      }
+    },
+    "已开启": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
           }
         }
       }
@@ -469,6 +699,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unlocked: %@"
+          }
+        }
+      }
+    },
+    "开会或全屏时会延后提醒；离开电脑会暂停，回来后重新计时": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reminders wait during meetings or full screen. The timer pauses when you step away and starts fresh when you return."
           }
         }
       }
@@ -523,6 +763,16 @@
         }
       }
     },
+    "当前阶段": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current phase"
+          }
+        }
+      }
+    },
     "怎么复现": {
       "localizations": {
         "en": {
@@ -553,6 +803,46 @@
         }
       }
     },
+    "成就墙": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Achievements"
+          }
+        }
+      }
+    },
+    "我住在菜单栏，点番茄仔查看和调整": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I live in the menu bar. Click the tomato to check in and adjust your timer."
+          }
+        }
+      }
+    },
+    "打开成就墙": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open achievements"
+          }
+        }
+      }
+    },
+    "推迟原因": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deferral reason"
+          }
+        }
+      }
+    },
     "提前结束": {
       "localizations": {
         "en": {
@@ -573,12 +863,32 @@
         }
       }
     },
+    "无": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        }
+      }
+    },
     "日": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Sun"
+          }
+        }
+      }
+    },
+    "是": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes"
           }
         }
       }
@@ -673,12 +983,32 @@
         }
       }
     },
+    "未知": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
+          }
+        }
+      }
+    },
     "未解锁：%@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Locked: %@"
+          }
+        }
+      }
+    },
+    "构建号": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build number"
           }
         }
       }
@@ -709,6 +1039,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Updates"
+          }
+        }
+      }
+    },
+    "欢迎来到 EyeBreak": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome to EyeBreak"
+          }
+        }
+      }
+    },
+    "到点后在屏幕右上角提醒你：开始休息、稍后提醒或跳过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When it is time, I will remind you at the top right of your screen. Start a break, snooze, or skip."
           }
         }
       }
@@ -773,6 +1123,16 @@
         }
       }
     },
+    "现在休息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rest now"
+          }
+        }
+      }
+    },
     "现在是休息时间，可以先开始或跳过休息": {
       "localizations": {
         "en": {
@@ -789,6 +1149,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The focus timer isn't running"
+          }
+        }
+      }
+    },
+    "界面语言": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interface language"
           }
         }
       }
@@ -833,12 +1203,52 @@
         }
       }
     },
+    "眺望时长（秒）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Break duration (seconds)"
+          }
+        }
+      }
+    },
     "眼球慢慢画圈": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Roll your eyes slowly"
+          }
+        }
+      }
+    },
+    "知道了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got it"
+          }
+        }
+      }
+    },
+    "确认后将以下信息复制到剪贴板。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm to copy the following information to the clipboard."
+          }
+        }
+      }
+    },
+    "确认复制": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm and copy"
           }
         }
       }
@@ -863,12 +1273,32 @@
         }
       }
     },
+    "稍后": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
+        }
+      }
+    },
     "稍后提醒": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Snoozed"
+          }
+        }
+      }
+    },
+    "稍后提醒中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Snoozing"
           }
         }
       }
@@ -899,6 +1329,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Waiting for break"
+          }
+        }
+      }
+    },
+    "等待授权": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approval required"
           }
         }
       }
@@ -953,6 +1393,16 @@
         }
       }
     },
+    "至少保留一个动作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep at least one exercise enabled"
+          }
+        }
+      }
+    },
     "芯片": {
       "localizations": {
         "en": {
@@ -969,6 +1419,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show timer in menu bar"
+          }
+        }
+      }
+    },
+    "覆盖工作时段": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schedule override"
           }
         }
       }
@@ -993,12 +1453,42 @@
         }
       }
     },
+    "设置…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings…"
+          }
+        }
+      }
+    },
+    "设置失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup failed"
+          }
+        }
+      }
+    },
     "设置失败，可在系统设置里手动添加": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't set it. Add it in System Settings."
+          }
+        }
+      }
+    },
+    "诊断信息预览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagnostics preview"
           }
         }
       }
@@ -1143,6 +1633,16 @@
         }
       }
     },
+    "通用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "General"
+          }
+        }
+      }
+    },
     "遇到了什么问题": {
       "localizations": {
         "en": {
@@ -1159,6 +1659,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Restart"
+          }
+        }
+      }
+    },
+    "重看引导": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show welcome guide"
           }
         }
       }

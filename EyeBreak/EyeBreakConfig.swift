@@ -47,14 +47,32 @@ enum EyeBreakConfig {
 
     /// 菜单栏是否在番茄仔旁边显示剩余时间（默认关闭）
     static let showMenuBarTimeKey = "showMenuBarTime"
-    /// 菜单里「更多设置」是否展开
-    static let showMoreSettingsKey = "showMoreSettings"
     /// 菜单里的本周统计是否展开
     static let showWeekStatsKey = "showWeekStats"
 
     private static let snapshotKey = "timerSnapshot"
     private static let exerciseIndexKey = "exerciseIndex"
     private static let reminderSoundKey = "reminderSound"
+    private static let enabledExercisesKey = "enabledExercises"
+
+    /// 启用的护眼动作，首次使用默认全部开启。
+    static var enabledExercises: Set<RestExercise> {
+        get { loadEnabledExercises(from: .standard) }
+        set { saveEnabledExercises(newValue, to: .standard) }
+    }
+
+    /// 独立偏好域便于测试，未知动作忽略，全关时回退为「看看远处」。
+    static func loadEnabledExercises(from defaults: UserDefaults) -> Set<RestExercise> {
+        guard let saved = defaults.array(forKey: enabledExercisesKey) as? [Int] else {
+            return Set(RestExercise.allCases)
+        }
+        return RestExercise.normalized(Set(saved.compactMap(RestExercise.init(rawValue:))))
+    }
+
+    static func saveEnabledExercises(_ exercises: Set<RestExercise>, to defaults: UserDefaults) {
+        let values = RestExercise.normalized(exercises).map(\.rawValue).sorted()
+        defaults.set(values, forKey: enabledExercisesKey)
+    }
 
     /// 提醒音选择，默认「清脆」（Glass）
     static var reminderSound: ReminderSound {

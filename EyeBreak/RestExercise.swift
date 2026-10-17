@@ -1,7 +1,7 @@
 import Foundation
 
 /// 休息时轮换的护眼小动作
-enum RestExercise: Int, CaseIterable {
+enum RestExercise: Int, CaseIterable, Sendable {
     case lookFar
     case blink
     case closeEyes
@@ -9,6 +9,11 @@ enum RestExercise: Int, CaseIterable {
 
     static func at(_ index: Int) -> RestExercise {
         allCases[((index % allCases.count) + allCases.count) % allCases.count]
+    }
+
+    /// 旧偏好损坏或所有动作都关闭时，仍至少保留「看看远处」。
+    static func normalized(_ exercises: Set<RestExercise>) -> Set<RestExercise> {
+        exercises.isEmpty ? [.lookFar] : exercises
     }
 
     /// 休息倒计时中显示的标题

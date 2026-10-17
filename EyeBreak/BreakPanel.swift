@@ -8,6 +8,7 @@ import SwiftUI
 final class BreakPanelController {
     final class State: ObservableObject {
         @Published var celebrating = false
+        @Published var isPresented = false
     }
 
     static let panelSize = NSSize(width: 300, height: 264)
@@ -19,6 +20,8 @@ final class BreakPanelController {
     private var panel: NSPanel?
     private var cancellables: Set<AnyCancellable> = []
     private var celebrationTask: Task<Void, Never>?
+    /// 面板是否应当显示；淡出动画期间再次显示时据此取消收起
+    private var wantsVisible = false
 
     init(model: EyeBreakModel, stats: TomatoStats) {
         self.model = model
@@ -38,7 +41,19 @@ final class BreakPanelController {
 
     private func phaseChanged(to phase: EyeBreakModel.Phase) {
         switch phase {
-        case .awaitingBreak, .resting:
+        case .awaitingBreak:
+            cancelCelebration()
+            show()
+            // 只在进入等待休息时播报一次；倒计时更新不触发主动播报。
+            NSAccessibility.post(
+                element: NSApp as Any,
+                notification: .announcementRequested,
+                userInfo: [
+                    .announcement: String(localized: "休息一下眼睛吧"),
+                    .priority: NSAccessibilityPriorityLevel.medium.rawValue
+                ]
+            )
+        case .resting:
             cancelCelebration()
             show()
         case .idle, .working, .paused, .away, .offHours:
@@ -68,7 +83,12 @@ final class BreakPanelController {
     private func show() {
         let panel = self.panel ?? makePanel()
         self.panel = panel
-        guard !panel.isVisible else { return }
+        wantsVisible = true
+        state.isPresented = true
+        guard !panel.isVisible else {
+            panel.alphaValue = 1
+            return
+        }
         position(panel)
         panel.alphaValue = 0
         panel.orderFrontRegardless()
@@ -79,14 +99,21 @@ final class BreakPanelController {
     }
 
     private func hide() {
-        guard let panel, panel.isVisible else { return }
+        wantsVisible = false
+        guard let panel, panel.isVisible else {
+            state.isPresented = false
+            return
+        }
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.2
             panel.animator().alphaValue = 0
-        }, completionHandler: {
+        }, completionHandler: { [weak self] in
             MainActor.assumeIsolated {
                 // 动画期间可能又需要显示（例如刚跳过又重新计时到点），此时不要收起
-                if panel.alphaValue == 0 { panel.orderOut(nil) }
+                guard let self, !self.wantsVisible else { return }
+                panel.orderOut(nil)
+                // orderOut 不保证触发 SwiftUI 的 onDisappear，淡出结束后主动卸载内容来取消所有时间线。
+                self.state.isPresented = false
             }
         })
     }
@@ -116,6 +143,14 @@ final class BreakPanelController {
         panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = true
+        panel.onEscape = { [weak model] in
+            guard let model else { return }
+            switch model.phase {
+            case .awaitingBreak: model.snooze()
+            case .resting: model.skipBreak()
+            case .idle, .working, .paused, .away, .offHours: break
+            }
+        }
         panel.contentView = NSHostingView(rootView: BreakPanelView(model: model, state: state, stats: stats))
         return panel
     }
@@ -123,22 +158,47 @@ final class BreakPanelController {
 
 /// 不抢焦点的面板，但仍允许点击其中的按钮
 private final class FloatingPanel: NSPanel {
+    var onEscape: (() -> Void)?
+
     override var canBecomeKey: Bool { true }
+
+    override func sendEvent(_ event: NSEvent) {
+        // 仅处理面板已经获焦后的 Esc，显示面板本身仍不激活 App 或抢焦点。
+        if isKeyWindow, event.type == .keyDown, event.keyCode == 53 {
+            onEscape?()
+            return
+        }
+        super.sendEvent(event)
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        onEscape?()
+    }
 }
 
-private struct BreakPanelView: View {
+struct BreakPanelView: View {
     @ObservedObject var model: EyeBreakModel
     @ObservedObject var state: BreakPanelController.State
     @ObservedObject var stats: TomatoStats
+    var animationTime: TimeInterval? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isHovered = false
+    @State private var replayID = 0
 
     var body: some View {
+        Group {
+            if state.isPresented { panelContent }
+        }
+        .frame(width: BreakPanelController.panelSize.width, height: BreakPanelController.panelSize.height)
+    }
+
+    private var panelContent: some View {
         ZStack {
             PolkaDots()
 
             Group {
                 if state.celebrating {
-                    CelebrationContent(todayCount: stats.today, unlocked: stats.justUnlocked)
+                    CelebrationContent(todayCount: stats.today, unlocked: stats.justUnlocked, isSnapshot: animationTime != nil)
                 } else if model.phase == .resting {
                     resting
                 } else {
@@ -147,9 +207,9 @@ private struct BreakPanelView: View {
             }
             .padding(.top, 22)
             .padding([.horizontal, .bottom], Theme.Spacing.panel)
-            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
 
-            if state.celebrating && !reduceMotion {
+            if state.celebrating && !reduceMotion && animationTime == nil {
                 ConfettiView()
                     .allowsHitTesting(false)
             }
@@ -163,11 +223,19 @@ private struct BreakPanelView: View {
             RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous)
                 .strokeBorder(Theme.creamDeep, lineWidth: 2)
         )
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside && !isHovered && model.phase == .awaitingBreak && !state.celebrating {
+                replayID += 1
+            }
+            isHovered = inside
+        }
+        .onDisappear { isHovered = false }
     }
 
     private var awaiting: some View {
         VStack(spacing: 0) {
-            TomatoCharacter(motion: model.exercise.motion, size: 76)
+            TomatoCharacter(motion: model.exercise.motion, size: 76, time: animationTime, loops: 2, replayID: replayID)
             Text("休息一下眼睛吧")
                 .font(Theme.font(19, .bold))
                 .foregroundStyle(Theme.ink)
@@ -184,9 +252,11 @@ private struct BreakPanelView: View {
     private var resting: some View {
         VStack(spacing: 0) {
             RingView(remaining: 1 - model.progress, color: Theme.leaf, lineWidth: 10) {
-                TomatoCharacter(motion: model.exercise.motion, size: 82)
+                TomatoCharacter(motion: model.exercise.motion, size: 82, time: animationTime, loops: 2)
             }
             .frame(width: 124, height: 124)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("休息中，剩余 \(model.remainingSeconds) 秒"))
             Text(model.exercise.title)
                 .font(Theme.font(18, .bold))
                 .foregroundStyle(Theme.ink)
@@ -231,14 +301,15 @@ struct BreakChoices: View {
 private struct CelebrationContent: View {
     var todayCount: Int
     var unlocked: [Achievement]
+    var isSnapshot = false
     @State private var popped = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 10) {
             TomatoAvatar(size: 84)
-                .scaleEffect(popped ? 1 : 0.3)
-                .rotationEffect(.degrees(popped ? 0 : -25))
+                .scaleEffect(reduceMotion || isSnapshot || popped ? 1 : 0.3)
+                .rotationEffect(.degrees(reduceMotion || isSnapshot || popped ? 0 : -25))
             Text("休息完成！")
                 .font(Theme.font(22, .bold))
                 .foregroundStyle(Theme.ink)
@@ -256,7 +327,7 @@ private struct CelebrationContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            if reduceMotion {
+            if reduceMotion || isSnapshot {
                 popped = true
             } else {
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.5)) { popped = true }

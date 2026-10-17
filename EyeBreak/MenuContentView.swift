@@ -7,18 +7,64 @@ struct MenuContentView: View {
     @ObservedObject var sounds: ReminderSounds
     @ObservedObject var updates: AppUpdater
     @ObservedObject var schedule: WorkScheduleSettings
+    var openSettings: (Bool) -> Void
+    var menuWindowChanged: (NSWindow?) -> Void
+
+    @AppStorage(EyeBreakConfig.showWeekStatsKey) private var showWeekStats = false
+    @State private var naturalHeight: CGFloat = 400
+    @State private var screenHeight: CGFloat = .greatestFiniteMagnitude
 
     var body: some View {
-        VStack(spacing: 18) {
+        ScrollView(.vertical) {
+            MenuBody(model: model, stats: stats, updates: updates, schedule: schedule,
+                     showWeekStats: $showWeekStats, openSettings: openSettings)
+                // 先让内容按 280 点宽度自由排版，再用外壳限制高度。
+                .fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: MenuHeightKey.self, value: proxy.size.height)
+                })
+        }
+        .scrollIndicators(.never)
+        .frame(width: 280, height: min(naturalHeight, screenHeight))
+        .background(Theme.cream)
+        .background(MenuWindowReader { window in
+            menuWindowChanged(window)
+            if let screen = window?.screen {
+                screenHeight = max(1, screen.visibleFrame.height - 40)
+            }
+        })
+        .onPreferenceChange(MenuHeightKey.self) { height in
+            if height > 0 { naturalHeight = ceil(height) }
+        }
+        .onAppear {
+            launchAtLogin.refresh()
+            stats.refresh()
+        }
+    }
+}
+
+/// 不含滚动壳的菜单内容，测试直接测量它的自然高度。
+struct MenuBody: View {
+    @ObservedObject var model: EyeBreakModel
+    @ObservedObject var stats: TomatoStats
+    @ObservedObject var updates: AppUpdater
+    @ObservedObject var schedule: WorkScheduleSettings
+    @Binding var showWeekStats: Bool
+    var openSettings: (Bool) -> Void
+    #if DEBUG
+    // 两条时长提示在真实状态下互斥，测试合成最坏排版时同时显示。
+    var showsAllPendingHintsForTesting = false
+    #endif
+
+    var body: some View {
+        VStack(spacing: 12) {
             header
             if let version = updates.availableVersion {
                 UpdateBanner(version: version, update: updates.checkForUpdates)
             }
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 ring
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { showWeekStats.toggle() }
-                } label: {
+                Button { showWeekStats.toggle() } label: {
                     HStack(spacing: 6) {
                         TomatoTally(today: stats.today, streak: stats.streak)
                         Image(systemName: "chevron.down")
@@ -31,22 +77,32 @@ struct MenuContentView: View {
                 .buttonStyle(.plain)
                 .help("查看本周番茄")
                 if showWeekStats {
-                    WeekChart(days: stats.lastSevenDays, unlocked: stats.unlocked)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    VStack(spacing: 6) {
+                        WeekChart(days: stats.lastSevenDays)
+                        Button { openSettings(true) } label: {
+                            HStack {
+                                Text("成就 \(stats.unlocked.count)/\(Achievement.allCases.count)")
+                                Spacer()
+                                Image(systemName: "chevron.right").accessibilityHidden(true)
+                            }
+                            .font(Theme.font(12, .semibold))
+                            .foregroundStyle(Theme.inkSoft)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("打开成就墙")
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: Theme.Radius.card).fill(Theme.creamDeep.opacity(0.6)))
                 }
             }
             controls
             settings
-            VersionFooter(updates: updates)
+            VersionFooter(updates: updates) { openSettings(false) }
         }
-        .padding(18)
+        .padding(16)
         .frame(width: 280)
         .background(Theme.cream)
-        // 用户可能在系统设置里改过登录项
-        .onAppear {
-            launchAtLogin.refresh()
-            stats.refresh()
-        }
     }
 
     private var header: some View {
@@ -85,7 +141,8 @@ struct MenuContentView: View {
             }
         }
         .frame(width: 156, height: 156)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(status)，剩余 \(model.remainingSeconds / 60) 分 \(model.remainingSeconds % 60) 秒"))
     }
 
     private var status: String {
@@ -129,6 +186,13 @@ struct MenuContentView: View {
                 Button("开始", action: model.start)
                     .buttonStyle(PillButtonStyle())
                     .keyboardShortcut(.defaultAction)
+            case .working where model.deferReason != nil:
+                // 推迟时保留一行操作，优先提供立即休息入口。
+                Button("暂停", action: model.pause)
+                    .buttonStyle(PillButtonStyle(kind: .secondary))
+                Button("现在休息", action: model.startBreakNow)
+                    .buttonStyle(PillButtonStyle())
+                    .keyboardShortcut(.defaultAction)
             case .working, .paused:
                 Button("重来", action: model.reset)
                     .buttonStyle(PillButtonStyle(kind: .secondary))
@@ -144,9 +208,19 @@ struct MenuContentView: View {
         }
     }
 
-    @AppStorage(EyeBreakConfig.showMoreSettingsKey) private var showMoreSettings = false
-    @AppStorage(EyeBreakConfig.showWeekStatsKey) private var showWeekStats = false
-    @AppStorage(EyeBreakConfig.showMenuBarTimeKey) private var showMenuBarTime = false
+    private var workHintVisible: Bool {
+        #if DEBUG
+        if showsAllPendingHintsForTesting { return true }
+        #endif
+        return model.workIntervalChangePending
+    }
+
+    private var restHintVisible: Bool {
+        #if DEBUG
+        if showsAllPendingHintsForTesting { return true }
+        #endif
+        return model.restDurationChangePending
+    }
 
     private var settings: some View {
         VStack(spacing: 10) {
@@ -159,7 +233,7 @@ struct MenuContentView: View {
                     ),
                     range: EyeBreakConfig.workMinutesRange, step: 5
                 )
-                if model.workIntervalChangePending {
+                if workHintVisible {
                     Text("下一轮生效")
                         .font(Theme.font(11))
                         .foregroundStyle(Theme.inkSoft)
@@ -174,84 +248,15 @@ struct MenuContentView: View {
                     ),
                     range: EyeBreakConfig.restSecondsRange, step: 5
                 )
-                if model.restDurationChangePending {
+                if restHintVisible {
                     Text("下次休息生效")
                         .font(Theme.font(11))
                         .foregroundStyle(Theme.inkSoft)
                 }
             }
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { showMoreSettings.toggle() }
-            } label: {
-                HStack {
-                    Text("更多设置")
-                        .font(Theme.font(13, .medium))
-                        .foregroundStyle(Theme.inkSoft)
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Theme.inkSoft)
-                        .rotationEffect(.degrees(showMoreSettings ? 180 : 0))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 2)
-
-            if showMoreSettings {
-                moreSettings
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
         }
         .padding(Theme.Spacing.card)
         .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
-    }
-
-    @ViewBuilder
-    private var moreSettings: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            settingTitle("提示音")
-            SoundPicker(selection: sounds.choice) { option in
-                sounds.choice = option
-                sounds.preview(option)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        Toggle(isOn: $showMenuBarTime) { settingTitle("菜单栏显示倒计时") }
-            .toggleStyle(CuteToggleStyle())
-        Toggle(isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) })) {
-            settingTitle("开机自启")
-        }
-        .toggleStyle(CuteToggleStyle())
-        if launchAtLogin.needsApproval || launchAtLogin.failed {
-            HStack {
-                (launchAtLogin.failed ? Text("设置失败，可在系统设置里手动添加") : Text("需要在系统设置里允许"))
-                    .font(Theme.font(12))
-                    .foregroundStyle(Theme.inkSoft)
-                Spacer()
-                Button("去设置", action: launchAtLogin.openLoginItemsSettings)
-                    .buttonStyle(PillButtonStyle(kind: .plain))
-            }
-        }
-        if updates.isConfigured {
-            Toggle(isOn: $updates.automaticChecks) { settingTitle("自动检查更新") }
-                .toggleStyle(CuteToggleStyle())
-        }
-        Toggle(isOn: $schedule.schedule.isEnabled) { settingTitle("只在工作时段提醒") }
-            .toggleStyle(CuteToggleStyle())
-        if schedule.schedule.isEnabled {
-            CuteStepper(title: "开始", unit: String(localized: "点"), value: $schedule.schedule.startHour, range: WorkSchedule.hourRange, step: 1)
-            CuteStepper(title: "结束", unit: String(localized: "点"), value: $schedule.schedule.endHour, range: WorkSchedule.hourRange, step: 1)
-            Toggle(isOn: $schedule.schedule.weekdaysOnly) { settingTitle("仅工作日") }
-                .toggleStyle(CuteToggleStyle())
-        }
-    }
-
-    private func settingTitle(_ title: LocalizedStringKey) -> some View {
-        Text(title)
-            .font(Theme.font(14, .medium))
-            .foregroundStyle(Theme.ink)
     }
 }
 
@@ -295,7 +300,7 @@ private struct TomatoTally: View {
 }
 
 /// 提示音选择：macOS 分段控件样式，选中项为番茄红。外框圆角 8 = 选项圆角 6 + 内边距 2
-private struct SoundPicker: View {
+struct SoundPicker: View {
     let selection: ReminderSound
     let onSelect: (ReminderSound) -> Void
 
@@ -359,42 +364,53 @@ private struct UpdateBanner: View {
     }
 }
 
-/// 菜单底部：当前版本号与手动检查更新
+/// 窄菜单中优先同行显示，英文放不下时让版本号独占一行。
 private struct VersionFooter: View {
     @ObservedObject var updates: AppUpdater
+    var openSettings: () -> Void
 
     var body: some View {
-        HStack(spacing: 4) {
-            Text("版本 \(updates.currentVersion)")
-                .font(Theme.font(12))
-                .foregroundStyle(Theme.inkSoft)
-            Spacer()
-            Button("反馈") { NSWorkspace.shared.open(AppLinks.newIssue()) }
-                .buttonStyle(PillButtonStyle(kind: .plain, small: true))
-                .help("在 GitHub 上反馈问题")
-            if let notices = AppLinks.thirdPartyNotices {
-                Button("许可") { NSWorkspace.shared.open(notices) }
-                    .buttonStyle(PillButtonStyle(kind: .plain, small: true))
-                    .help("查看开源许可")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                version
+                Spacer(minLength: 0)
+                actions
             }
+            VStack(spacing: 2) {
+                version.frame(maxWidth: .infinity, alignment: .leading)
+                HStack { Spacer(); actions }
+            }
+        }
+    }
+
+    private var version: some View {
+        Text("版本 \(updates.currentVersion)")
+            .font(Theme.font(12))
+            .foregroundStyle(Theme.inkSoft)
+            .fixedSize()
+    }
+
+    private var actions: some View {
+        HStack(spacing: 4) {
+            Button("设置…", action: openSettings)
+                .buttonStyle(PillButtonStyle(kind: .plain, small: true))
             if updates.isConfigured {
                 Button("检查更新", action: updates.checkForUpdates)
                     .buttonStyle(PillButtonStyle(kind: .plain, small: true))
                     .disabled(!updates.canCheckForUpdates)
             }
         }
+        .fixedSize()
     }
 }
 
 /// 最近 7 天的番茄柱状图：今天是番茄红，其他天是浅色
 private struct WeekChart: View {
     let days: [TomatoStats.Day]
-    let unlocked: Set<Achievement>
-    private let maxBarHeight: CGFloat = 44
+    private let maxBarHeight: CGFloat = 28
 
     var body: some View {
         let peak = max(days.map(\.count).max() ?? 0, 1)
-        VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .bottom, spacing: 8) {
             ForEach(days) { day in
                 VStack(spacing: 4) {
@@ -417,26 +433,6 @@ private struct WeekChart: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("最近 7 天共收集 \(days.map(\.count).reduce(0, +)) 个番茄")
 
-        VStack(alignment: .leading, spacing: 6) {
-            Text("成就 \(unlocked.count)/\(Achievement.allCases.count)")
-                .font(Theme.font(12, .semibold))
-                .foregroundStyle(Theme.inkSoft)
-            FlowLayout(spacing: 5) {
-                ForEach(Achievement.allCases) { achievement in
-                    let earned = unlocked.contains(achievement)
-                    Text(verbatim: achievement.title)
-                        .font(Theme.font(11, .semibold))
-                        .foregroundStyle(earned ? .white : Theme.inkSoft)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(earned ? Theme.tomatoFill : Theme.ink.opacity(0.07)))
-                        .accessibilityLabel(earned ? Text("已解锁：\(achievement.title)") : Text("未解锁：\(achievement.title)"))
-                }
-            }
-        }
-        }
-        .padding(Theme.Spacing.card)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
     }
 
     private func barColor(_ day: TomatoStats.Day) -> Color {
@@ -447,5 +443,43 @@ private struct WeekChart: View {
     /// 公历 weekday：1 是周日
     static func weekdayLabel(_ weekday: Int) -> String {
         [String(localized: "日"), String(localized: "一"), String(localized: "二"), String(localized: "三"), String(localized: "四"), String(localized: "五"), String(localized: "六")][(weekday - 1 + 7) % 7]
+    }
+}
+
+private struct MenuHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// 从实际宿主窗口读取屏幕；切换显示器、改变屏幕排列后重新计算可用高度。
+private struct MenuWindowReader: NSViewRepresentable {
+    var onChange: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> ScreenObserverView {
+        let view = ScreenObserverView()
+        view.onChange = onChange
+        return view
+    }
+
+    func updateNSView(_ nsView: ScreenObserverView, context: Context) {
+        nsView.onChange = onChange
+    }
+
+    final class ScreenObserverView: NSView {
+        var onChange: ((NSWindow?) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            NotificationCenter.default.removeObserver(self)
+            if let window {
+                NotificationCenter.default.addObserver(self, selector: #selector(screenChanged), name: NSWindow.didChangeScreenNotification, object: window)
+                NotificationCenter.default.addObserver(self, selector: #selector(screenChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
+            }
+            // 避开 SwiftUI 更新视图的调用栈，再写入测量状态。
+            DispatchQueue.main.async { [weak self] in self?.screenChanged() }
+        }
+
+        @objc private func screenChanged() { onChange?(window) }
+        deinit { NotificationCenter.default.removeObserver(self) }
     }
 }

@@ -32,6 +32,20 @@ final class AppUpdater: NSObject, ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private let logger = Logger(subsystem: "EyeBreak", category: "update")
 
+    #if DEBUG
+    /// 仅用于菜单自然高度测试，不启动 Sparkle 或联网。
+    func setAvailableVersionForTesting(_ version: String?) {
+        availableVersion = version
+    }
+
+    /// 截图固定更新控件状态，不启动 Sparkle 或读取历史检查记录。
+    func setSnapshotState(availableVersion: String? = nil) {
+        self.availableVersion = availableVersion
+        canCheckForUpdates = true
+        automaticChecks = false
+    }
+    #endif
+
     func start() {
         guard isConfigured, controller == nil else {
             if !isConfigured { logger.notice("Updater disabled: no public key configured") }

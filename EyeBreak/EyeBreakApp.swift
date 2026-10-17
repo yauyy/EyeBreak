@@ -8,7 +8,13 @@ struct EyeBreakApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin, stats: appDelegate.stats, sounds: appDelegate.sounds, updates: appDelegate.updates, schedule: appDelegate.schedule)
+            MenuContentView(
+                model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin,
+                stats: appDelegate.stats, sounds: appDelegate.sounds,
+                updates: appDelegate.updates, schedule: appDelegate.schedule,
+                openSettings: { appDelegate.openSettings(achievements: $0) },
+                menuWindowChanged: { appDelegate.menuWindow = $0 }
+            )
         } label: {
             MenuBarLabel(model: appDelegate.model)
         }
@@ -23,13 +29,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model: EyeBreakModel
     let sounds: ReminderSounds
     let schedule: WorkScheduleSettings
-    let launchAtLogin = LaunchAtLogin()
-    let stats = TomatoStats()
-    let updates = AppUpdater()
+    let launchAtLogin: LaunchAtLogin
+    let stats: TomatoStats
+    let updates: AppUpdater
+    weak var menuWindow: NSWindow?
+    private let shouldShowOnboarding: Bool
+    private var settingsWindow: SettingsWindowController?
+    private var onboardingWindow: OnboardingWindowController?
+    private var shortcutMonitor: Any?
     private var breakPanel: BreakPanelController?
     private var cancellables: Set<AnyCancellable> = []
 
     override init() {
+        // 必须先读持久域：后续状态对象与 Sparkle 的初始化可能写入偏好。
+        let defaults = UserDefaults.standard
+        let domain = Bundle.main.bundleIdentifier.flatMap { defaults.persistentDomain(forName: $0) } ?? [:]
+        shouldShowOnboarding = OnboardingPolicy.shouldPresent(persistentDomain: domain)
+        if !shouldShowOnboarding, !EyeBreakConfig.isRunningTests {
+            defaults.set(true, forKey: OnboardingPolicy.seenKey)
+        }
+        launchAtLogin = LaunchAtLogin()
+        stats = TomatoStats()
+        updates = AppUpdater()
         let schedule = WorkScheduleSettings()
         let sounds = ReminderSounds(choice: EyeBreakConfig.reminderSound)
         sounds.onChoiceChanged = { EyeBreakConfig.reminderSound = $0 }
@@ -38,11 +59,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             restDuration: EyeBreakConfig.restDuration,
             reminder: sounds,
             isWorkTime: { [weak schedule] in schedule?.schedule.contains(Date()) ?? true },
-            exerciseIndex: EyeBreakConfig.exerciseIndex
+            exerciseIndex: EyeBreakConfig.exerciseIndex,
+            enabledExercises: EyeBreakConfig.enabledExercises
         )
         model.onPreferencesChanged = { work, rest in
             EyeBreakConfig.save(workInterval: work, restDuration: rest)
         }
+        model.onEnabledExercisesChanged = { EyeBreakConfig.enabledExercises = $0 }
+        schedule.onScheduleChanged = { [weak model] in model?.workScheduleDidChange() }
         self.model = model
         IntentHub.shared.model = model
         self.sounds = sounds
@@ -70,6 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 先恢复再开始保存，避免启动时的初始状态覆盖掉上次的快照
         model.onSnapshot = { EyeBreakConfig.saveSnapshot($0) }
         updates.start()
+        installShortcuts()
+        if shouldShowOnboarding { showOnboarding() }
         // 专注模式在启动前就已开启时，系统不会再调用过滤条件，这里主动读一次当前状态
         Task { [model] in
             if let filter = try? await EyeBreakFocusFilter.current {
@@ -88,7 +114,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let shortcutMonitor { NSEvent.removeMonitor(shortcutMonitor) }
         model.shutdown()
+    }
+
+    func openSettings(achievements: Bool = false) {
+        menuWindow?.close()
+        if settingsWindow == nil {
+            settingsWindow = SettingsWindowController(
+                model: model, launchAtLogin: launchAtLogin, stats: stats,
+                sounds: sounds, updates: updates, schedule: schedule,
+                onReplayOnboarding: { [weak self] in self?.showOnboarding() }
+            )
+        }
+        settingsWindow?.show(section: achievements ? .about : nil, focusAchievements: achievements)
+    }
+
+    private func showOnboarding() {
+        menuWindow?.close()
+        if onboardingWindow == nil {
+            onboardingWindow = OnboardingWindowController(model: model)
+        }
+        onboardingWindow?.present()
+    }
+
+    /// LSUIElement 没有可见主菜单，用应用内事件监听保证快捷键有效；不监听其他应用。
+    private func installShortcuts() {
+        shortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let handled = MainActor.assumeIsolated {
+                guard let self,
+                      event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command,
+                      event.charactersIgnoringModifiers == ",",
+                      self.menuWindow?.isVisible == true || NSApp.keyWindow != nil else { return false }
+                self.openSettings()
+                return true
+            }
+            return handled ? nil : event
+        }
     }
 }
 

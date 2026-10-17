@@ -36,9 +36,9 @@ xattr -dr com.apple.quarantine /Applications/EyeBreak.app
 - **退出或重启**：会记住计时状态，重新打开后接着来
 - **合盖睡眠**：短暂睡眠后接着计时，睡了很久则开始新一轮
 
-**可调整的设置**：专注时长（5–180 分钟）、眺望时长（5–600 秒）；「更多设置」里还有提示音、菜单栏显示倒计时、开机自启、自动检查更新、工作时段。
+**可调整的设置**：菜单里直接调专注时长（5–180 分钟）和眺望时长（5–600 秒）；点「设置…」（⌘,）打开设置窗口，里面有提示音、菜单栏显示倒计时、开机自启、自动检查更新、要做的护眼动作、工作时段。
 
-**番茄收集**：点菜单里今天的番茄，可以展开最近 7 天的柱状图和 8 个小成就。
+**番茄收集**：点菜单里今天的番茄，可以展开最近 7 天的柱状图；8 个小成就在设置窗口的「关于」里。
 
 **快捷指令**：「快捷指令」App 里有开始专注、暂停计时、开始休息、跳过休息四个动作。
 
@@ -108,6 +108,9 @@ open ~/Library/Developer/Xcode/DerivedData/EyeBreak-build/Build/Products/Release
 xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -derivedDataPath ~/Library/Developer/Xcode/DerivedData/EyeBreak-build test
 ```
 
+截图回归：`TEST_RUNNER_EYEBREAK_SNAPSHOT_DIR=EyeBreakSnapshots xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -derivedDataPath ~/Library/Developer/Xcode/DerivedData/EyeBreak-build test -testLanguage zh-Hans`，再将末尾语言改为 `en` 单独运行一次；不设置变量时默认跳过截图。
+PNG 输出到测试 App 容器的 `tmp/EyeBreakSnapshots/`（每张图的完整路径会打印在测试日志中），文件名带语言和深浅外观；相对目录名始终解析到容器 tmp，绝对路径也必须位于该 tmp 内。
+
 构建目录放在 `~/Library/Developer/Xcode/DerivedData/` 下，而不是项目里：项目在「文稿」文件夹中，从这里运行的 App 会反复弹出访问「文稿」的权限提示。
 
 以 10 秒测试间隔启动 Debug 版，并自动开始计时：
@@ -151,7 +154,10 @@ EyeBreak/
 │                              稍后提醒、睡眠唤醒、状态保存与恢复、防重复触发
 ├── EyeBreakConfig.swift       设置与状态的读写（含 Debug 测试参数）
 ├── BreakPanel.swift           常驻提醒悬浮面板：提醒 / 休息倒计时 / 庆祝
-├── MenuContentView.swift      菜单栏弹出面板与设置
+├── MenuContentView.swift      菜单栏弹出面板
+├── SettingsWindow.swift       设置窗口：通用 / 休息 / 工作时段 / 关于（含成就墙）
+├── Onboarding.swift           首次打开时的一页引导
+├── Diagnostics.swift          复制诊断信息（只含白名单字段）
 ├── Theme.swift                Q 版配色、圆体字、圆角规范、胶囊按钮、圆环、开关等界面组件
 ├── TomatoCharacter.swift      SwiftUI 绘制的会动的番茄仔
 ├── RestExercise.swift         轮换的护眼小动作

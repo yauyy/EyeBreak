@@ -12,8 +12,9 @@ final class LaunchAtLogin: ObservableObject {
 
     private let logger = Logger(subsystem: "EyeBreak", category: "login-item")
 
-    init() {
-        refresh()
+    init(refreshesSystemStatus: Bool = true) {
+        // 截图宿主跳过系统状态读取，避免本机登录项设置影响固定画面。
+        if refreshesSystemStatus { refresh() }
     }
 
     func refresh() {

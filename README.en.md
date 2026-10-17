@@ -33,7 +33,7 @@ Requires macOS 13 or later. Universal app for Apple silicon and Intel.
 - **Focus modes**: add an EyeBreak Focus filter to hold reminders during a Focus
 - **Restarts**: the timer state is restored after quitting or rebooting
 
-**Also included**: today's tomatoes, a seven-day chart, achievements, Shortcuts actions, an optional countdown in the menu bar, sound choices, open at login, and in-app updates.
+**Also included**: today's tomatoes, a seven-day chart, achievements, Shortcuts actions, and in-app updates. Focus and rest lengths are right in the menu; **Settings…** (⌘,) holds sounds, the menu bar countdown, open at login, which eye exercises to use, and work hours.
 
 ## Privacy
 
