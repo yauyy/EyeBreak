@@ -9,9 +9,11 @@ struct MenuContentView: View {
     @ObservedObject var schedule: WorkScheduleSettings
     var openSettings: (Bool) -> Void
     var menuWindowChanged: (NSWindow?) -> Void
+    // 窗口测试覆盖可用高度，默认仍跟随菜单所在屏幕。
+    var heightLimitOverride: CGFloat? = nil
 
     @AppStorage(EyeBreakConfig.showWeekStatsKey) private var showWeekStats = false
-    @State private var naturalHeight: CGFloat = 400
+    @State private var naturalHeight: CGFloat?
     @State private var screenHeight: CGFloat = .greatestFiniteMagnitude
 
     var body: some View {
@@ -19,13 +21,18 @@ struct MenuContentView: View {
             MenuBody(model: model, stats: stats, updates: updates, schedule: schedule,
                      showWeekStats: $showWeekStats, openSettings: openSettings)
                 // 先让内容按 280 点宽度自由排版，再用外壳限制高度。
+                .frame(width: 280)
                 .fixedSize(horizontal: false, vertical: true)
                 .background(GeometryReader { proxy in
                     Color.clear.preference(key: MenuHeightKey.self, value: proxy.size.height)
                 })
+                .onPreferenceChange(MenuHeightKey.self) { height in
+                    if height > 0 { naturalHeight = ceil(height) }
+                }
         }
         .scrollIndicators(.never)
-        .frame(width: 280, height: min(naturalHeight, screenHeight))
+        // 首次测量前不指定高度，避免先显示任意占位高度再跳到内容高度。
+        .frame(width: 280, height: naturalHeight.map { min($0, heightLimitOverride ?? screenHeight) })
         .background(Theme.cream)
         .background(MenuWindowReader { window in
             menuWindowChanged(window)
@@ -33,9 +40,6 @@ struct MenuContentView: View {
                 screenHeight = max(1, screen.visibleFrame.height - 40)
             }
         })
-        .onPreferenceChange(MenuHeightKey.self) { height in
-            if height > 0 { naturalHeight = ceil(height) }
-        }
         .onAppear {
             launchAtLogin.refresh()
             stats.refresh()
@@ -448,7 +452,7 @@ private struct WeekChart: View {
 
 private struct MenuHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// 从实际宿主窗口读取屏幕；切换显示器、改变屏幕排列后重新计算可用高度。
