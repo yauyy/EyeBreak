@@ -1,12 +1,14 @@
+import Combine
 import SwiftUI
 
 struct MenuContentView: View {
-    @ObservedObject var model: EyeBreakModel
-    @ObservedObject var launchAtLogin: LaunchAtLogin
-    @ObservedObject var stats: TomatoStats
-    @ObservedObject var sounds: ReminderSounds
-    @ObservedObject var updates: AppUpdater
-    @ObservedObject var schedule: WorkScheduleSettings
+    // 外壳只负责窗口和自然高度，不随每秒倒计时重新测量。
+    let model: EyeBreakModel
+    let launchAtLogin: LaunchAtLogin
+    let stats: TomatoStats
+    let sounds: ReminderSounds
+    let updates: AppUpdater
+    let schedule: WorkScheduleSettings
     var openSettings: (Bool) -> Void
     var menuWindowChanged: (NSWindow?) -> Void
     // 窗口测试覆盖可用高度，默认仍跟随菜单所在屏幕。
@@ -49,7 +51,8 @@ struct MenuContentView: View {
 
 /// 不含滚动壳的菜单内容，测试直接测量它的自然高度。
 struct MenuBody: View {
-    @ObservedObject var model: EyeBreakModel
+    @StateObject private var modelChanges: MenuModelChanges
+    var model: EyeBreakModel { modelChanges.model }
     @ObservedObject var stats: TomatoStats
     @ObservedObject var updates: AppUpdater
     @ObservedObject var schedule: WorkScheduleSettings
@@ -60,6 +63,31 @@ struct MenuBody: View {
     var showsAllPendingHintsForTesting = false
     #endif
 
+    init(
+        model: EyeBreakModel, stats: TomatoStats, updates: AppUpdater,
+        schedule: WorkScheduleSettings, showWeekStats: Binding<Bool>,
+        openSettings: @escaping (Bool) -> Void
+    ) {
+        _modelChanges = StateObject(wrappedValue: MenuModelChanges(model: model))
+        self.stats = stats
+        self.updates = updates
+        self.schedule = schedule
+        _showWeekStats = showWeekStats
+        self.openSettings = openSettings
+    }
+
+    #if DEBUG
+    init(
+        model: EyeBreakModel, stats: TomatoStats, updates: AppUpdater,
+        schedule: WorkScheduleSettings, showWeekStats: Binding<Bool>,
+        openSettings: @escaping (Bool) -> Void, showsAllPendingHintsForTesting: Bool
+    ) {
+        self.init(model: model, stats: stats, updates: updates, schedule: schedule,
+                  showWeekStats: showWeekStats, openSettings: openSettings)
+        self.showsAllPendingHintsForTesting = showsAllPendingHintsForTesting
+    }
+    #endif
+
     var body: some View {
         VStack(spacing: 12) {
             header
@@ -67,7 +95,7 @@ struct MenuBody: View {
                 UpdateBanner(version: version, update: updates.checkForUpdates)
             }
             VStack(spacing: 12) {
-                ring
+                MenuCountdownRing(model: model, schedule: schedule)
                 Button { showWeekStats.toggle() } label: {
                     HStack(spacing: 6) {
                         TomatoTally(today: stats.today, streak: stats.streak)
@@ -120,64 +148,6 @@ struct MenuBody: View {
                 .buttonStyle(PillButtonStyle(kind: .plain))
                 .keyboardShortcut("q")
         }
-    }
-
-    private var ring: some View {
-        RingView(remaining: 1 - model.progress, color: phaseColor) {
-            VStack(spacing: 2) {
-                Text(model.formattedRemaining)
-                    .font(Theme.font(36, .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(Theme.ink)
-                Text(status)
-                    .font(Theme.font(13, .medium))
-                    .foregroundStyle(statusColor)
-                if model.phase == .offHours {
-                    Text(verbatim: schedule.schedule.rangeText + (schedule.schedule.weekdaysOnly ? " · " + String(localized: "工作日") : ""))
-                        .font(Theme.font(11))
-                        .foregroundStyle(Theme.inkSoft)
-                }
-                if let test = EyeBreakConfig.testWorkInterval, model.workInterval == test {
-                    Text("测试 \(Int(test)) 秒")
-                        .font(Theme.font(11))
-                        .foregroundStyle(Theme.inkSoft)
-                }
-            }
-        }
-        .frame(width: 156, height: 156)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(status)，剩余 \(model.remainingSeconds / 60) 分 \(model.remainingSeconds % 60) 秒"))
-    }
-
-    private var status: String {
-        switch model.phase {
-        case .idle: return String(localized: "准备好了吗")
-        case .working:
-            switch model.deferReason {
-            case .meeting: return String(localized: "会议结束后提醒")
-            case .fullscreen: return String(localized: "退出全屏后提醒")
-            case .focus: return String(localized: "专注模式结束后提醒")
-            case nil: break
-            }
-            return model.isSnoozing ? String(localized: "稍后提醒") : String(localized: "专注中")
-        case .paused: return String(localized: "已暂停")
-        case .awaitingBreak: return String(localized: "该休息啦")
-        case .resting: return String(localized: "休息中")
-        case .away: return String(localized: "离开中")
-        case .offHours: return String(localized: "工作时段外")
-        }
-    }
-
-    private var phaseColor: Color {
-        switch model.phase {
-        case .working, .awaitingBreak: return Theme.tomato
-        case .resting: return Theme.leaf
-        case .idle, .paused, .away, .offHours: return Theme.tomatoSoft
-        }
-    }
-
-    private var statusColor: Color {
-        [.idle, .paused, .away, .offHours].contains(model.phase) ? Theme.inkSoft : phaseColor
     }
 
     private var controls: some View {
@@ -262,6 +232,93 @@ struct MenuBody: View {
         .padding(Theme.Spacing.card)
         .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.creamDeep.opacity(0.6)))
     }
+}
+
+/// 仅把影响菜单布局和操作的状态变化传给主体；秒数只由圆环区域观察。
+@MainActor
+final class MenuModelChanges: ObservableObject {
+    let model: EyeBreakModel
+    @Published private var revision = 0
+    private var cancellables: Set<AnyCancellable> = []
+
+    init(model: EyeBreakModel) {
+        self.model = model
+        Publishers.MergeMany([
+            // 同一专注阶段「重来」也会改变本轮总时长，不能过滤重复的 phase。
+            model.$phase.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            model.$deferReason.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            model.$isSnoozing.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            model.$workInterval.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            model.$restDuration.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher()
+        ])
+        .sink { [weak self] in self?.revision &+= 1 }
+        .store(in: &cancellables)
+    }
+}
+
+/// 每秒变化限制在固定尺寸的圆环和文字内，不重建菜单操作、统计或高度测量外壳。
+private struct MenuCountdownRing: View {
+    @ObservedObject var model: EyeBreakModel
+    @ObservedObject var schedule: WorkScheduleSettings
+
+    var body: some View {
+        RingView(remaining: 1 - model.progress, color: phaseColor) {
+            VStack(spacing: 2) {
+                Text(model.formattedRemaining)
+                    .font(Theme.font(36, .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.ink)
+                Text(status)
+                    .font(Theme.font(13, .medium))
+                    .foregroundStyle(statusColor)
+                if model.phase == .offHours {
+                    Text(verbatim: schedule.schedule.rangeText + (schedule.schedule.weekdaysOnly ? " · " + String(localized: "工作日") : ""))
+                        .font(Theme.font(11))
+                        .foregroundStyle(Theme.inkSoft)
+                }
+                if let test = EyeBreakConfig.testWorkInterval, model.workInterval == test {
+                    Text("测试 \(Int(test)) 秒")
+                        .font(Theme.font(11))
+                        .foregroundStyle(Theme.inkSoft)
+                }
+            }
+        }
+        .frame(width: 156, height: 156)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(status)，剩余 \(model.remainingSeconds / 60) 分 \(model.remainingSeconds % 60) 秒"))
+    }
+
+    private var status: String {
+        switch model.phase {
+        case .idle: return String(localized: "准备好了吗")
+        case .working:
+            switch model.deferReason {
+            case .meeting: return String(localized: "会议结束后提醒")
+            case .fullscreen: return String(localized: "退出全屏后提醒")
+            case .focus: return String(localized: "专注模式结束后提醒")
+            case nil: break
+            }
+            return model.isSnoozing ? String(localized: "稍后提醒") : String(localized: "专注中")
+        case .paused: return String(localized: "已暂停")
+        case .awaitingBreak: return String(localized: "该休息啦")
+        case .resting: return String(localized: "休息中")
+        case .away: return String(localized: "离开中")
+        case .offHours: return String(localized: "工作时段外")
+        }
+    }
+
+    private var phaseColor: Color {
+        switch model.phase {
+        case .working, .awaitingBreak: return Theme.tomato
+        case .resting: return Theme.leaf
+        case .idle, .paused, .away, .offHours: return Theme.tomatoSoft
+        }
+    }
+
+    private var statusColor: Color {
+        [.idle, .paused, .away, .offHours].contains(model.phase) ? Theme.inkSoft : phaseColor
+    }
+
 }
 
 /// 今日收集的番茄：最多画 8 个小番茄，多出来的用 +N 表示

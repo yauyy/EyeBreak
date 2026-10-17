@@ -16,6 +16,7 @@ final class BreakPanelController {
 
     private let model: EyeBreakModel
     private let stats: TomatoStats
+    private let presentation: BreakPanelPresentation
     private let state = State()
     private var panel: NSPanel?
     private var cancellables: Set<AnyCancellable> = []
@@ -26,6 +27,7 @@ final class BreakPanelController {
     init(model: EyeBreakModel, stats: TomatoStats) {
         self.model = model
         self.stats = stats
+        presentation = BreakPanelPresentation(model: model)
         model.$phase
             .removeDuplicates()
             .sink { [weak self] phase in
@@ -40,6 +42,8 @@ final class BreakPanelController {
     }
 
     private func phaseChanged(to phase: EyeBreakModel.Phase) {
+        // phase 在 willSet 发布；首次创建宿主时也必须采用正在发送的新阶段。
+        presentation.synchronizePhase(phase)
         switch phase {
         case .awaitingBreak:
             cancelCelebration()
@@ -151,7 +155,7 @@ final class BreakPanelController {
             case .idle, .working, .paused, .away, .offHours: break
             }
         }
-        panel.contentView = NSHostingView(rootView: BreakPanelView(model: model, state: state, stats: stats))
+        panel.contentView = NSHostingView(rootView: BreakPanelView(model: model, state: state, stats: stats, presentation: presentation))
         return panel
     }
 }
@@ -176,14 +180,57 @@ private final class FloatingPanel: NSPanel {
     }
 }
 
+/// 面板外壳只观察阶段和配置；秒数更新留给下面两个很小的倒计时视图。
+@MainActor
+final class BreakPanelPresentation: ObservableObject {
+    struct Configuration: Equatable {
+        var phase: EyeBreakModel.Phase
+        var exercise: RestExercise
+        var restDuration: TimeInterval
+    }
+
+    @Published private(set) var configuration: Configuration
+    private var subscription: AnyCancellable?
+
+    init(model: EyeBreakModel) {
+        configuration = Configuration(phase: model.phase, exercise: model.exercise, restDuration: model.restDuration)
+        subscription = Publishers.CombineLatest3(model.$phase, model.$exerciseIndex, model.$restDuration)
+            .map { Configuration(phase: $0, exercise: RestExercise.at(max(0, $1)), restDuration: $2) }
+            .removeDuplicates()
+            .sink { [weak self] configuration in
+                MainActor.assumeIsolated {
+                    guard let self, self.configuration != configuration else { return }
+                    self.configuration = configuration
+                }
+            }
+    }
+
+    func synchronizePhase(_ phase: EyeBreakModel.Phase) {
+        guard configuration.phase != phase else { return }
+        configuration.phase = phase
+    }
+}
+
 struct BreakPanelView: View {
-    @ObservedObject var model: EyeBreakModel
+    let model: EyeBreakModel
     @ObservedObject var state: BreakPanelController.State
     @ObservedObject var stats: TomatoStats
     var animationTime: TimeInterval? = nil
+    @StateObject private var presentation: BreakPanelPresentation
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
     @State private var replayID = 0
+
+    init(
+        model: EyeBreakModel, state: BreakPanelController.State, stats: TomatoStats,
+        animationTime: TimeInterval? = nil, presentation: BreakPanelPresentation? = nil
+    ) {
+        self.model = model
+        self.state = state
+        self.stats = stats
+        self.animationTime = animationTime
+        _presentation = StateObject(wrappedValue: presentation ?? BreakPanelPresentation(model: model))
+    }
 
     var body: some View {
         Group {
@@ -199,7 +246,7 @@ struct BreakPanelView: View {
             Group {
                 if state.celebrating {
                     CelebrationContent(todayCount: stats.today, unlocked: stats.justUnlocked, isSnapshot: animationTime != nil)
-                } else if model.phase == .resting {
+                } else if presentation.configuration.phase == .resting {
                     resting
                 } else {
                     awaiting
@@ -215,7 +262,7 @@ struct BreakPanelView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: state.celebrating)
-        .animation(.easeInOut(duration: 0.25), value: model.phase)
+        .animation(.easeInOut(duration: 0.25), value: presentation.configuration.phase)
         .frame(width: BreakPanelController.panelSize.width, height: BreakPanelController.panelSize.height)
         .background(Theme.cream)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
@@ -235,12 +282,12 @@ struct BreakPanelView: View {
 
     private var awaiting: some View {
         VStack(spacing: 0) {
-            TomatoCharacter(motion: model.exercise.motion, size: 76, time: animationTime, loops: 2, replayID: replayID)
+            TomatoCharacter(motion: presentation.configuration.exercise.motion, size: 76, time: animationTime, loops: 2, replayID: replayID)
             Text("休息一下眼睛吧")
                 .font(Theme.font(19, .bold))
                 .foregroundStyle(Theme.ink)
                 .padding(.top, 10)
-            Text("\(model.exercise.instruction)，放松 \(Int(model.restDuration)) 秒")
+            Text("\(presentation.configuration.exercise.instruction)，放松 \(Int(presentation.configuration.restDuration)) 秒")
                 .font(Theme.font(13))
                 .foregroundStyle(Theme.inkSoft)
                 .padding(.top, 4)
@@ -251,25 +298,43 @@ struct BreakPanelView: View {
 
     private var resting: some View {
         VStack(spacing: 0) {
-            RingView(remaining: 1 - model.progress, color: Theme.leaf, lineWidth: 10) {
-                TomatoCharacter(motion: model.exercise.motion, size: 82, time: animationTime, loops: 2)
-            }
-            .frame(width: 124, height: 124)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text("休息中，剩余 \(model.remainingSeconds) 秒"))
-            Text(model.exercise.title)
+            RestCountdownRing(model: model)
+                .frame(width: 124, height: 124)
+                .overlay {
+                    // 番茄仔与秒级圆环是兄弟视图，圆环刷新不会重建角色或其播放任务。
+                    TomatoCharacter(motion: presentation.configuration.exercise.motion, size: 82, time: animationTime, loops: 2)
+                }
+            Text(presentation.configuration.exercise.title)
                 .font(Theme.font(18, .bold))
                 .foregroundStyle(Theme.ink)
                 .padding(.top, 12)
-            Text("还剩 \(model.remainingSeconds) 秒")
-                .font(Theme.font(13, .medium))
-                .monospacedDigit()
-                .foregroundStyle(Theme.inkSoft)
+            RestCountdownText(model: model)
                 .padding(.top, 2)
             Spacer(minLength: 6)
             Button("提前结束", action: model.skipBreak)
                 .buttonStyle(PillButtonStyle(kind: .plain))
         }
+    }
+}
+
+private struct RestCountdownRing: View {
+    @ObservedObject var model: EyeBreakModel
+
+    var body: some View {
+        RingView(remaining: 1 - model.progress, color: Theme.leaf, lineWidth: 10) { Color.clear }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("休息中，剩余 \(model.remainingSeconds) 秒"))
+    }
+}
+
+private struct RestCountdownText: View {
+    @ObservedObject var model: EyeBreakModel
+
+    var body: some View {
+        Text("还剩 \(model.remainingSeconds) 秒")
+            .font(Theme.font(13, .medium))
+            .monospacedDigit()
+            .foregroundStyle(Theme.inkSoft)
     }
 }
 

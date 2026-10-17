@@ -34,11 +34,18 @@ struct TomatoCharacter: View {
         let currentMotion = motion
         let representative = TomatoRenderer.representativeTime(for: currentMotion)
         let frozenTime = reduceMotion ? representative : (time ?? (suppressed ? representative : nil))
-        return TimelineView(.animation(paused: hasFinished || frozenTime != nil || currentMotion == .still)) { timeline in
-            let elapsed = hasFinished ? TomatoPlayback.duration(for: currentMotion, loops: loops) : timeline.date.timeIntervalSince(startedAt)
-            let seconds = frozenTime ?? TomatoPlayback.frame(motion: currentMotion, elapsed: elapsed, loops: loops).time
-            Canvas { context, canvasSize in
-                TomatoRenderer.draw(in: context, scale: canvasSize.width / 100, motion: currentMotion, t: seconds)
+        return Group {
+            if let frozenTime {
+                TomatoFrame(motion: currentMotion, time: frozenTime).equatable()
+            } else if hasFinished || currentMotion == .still {
+                // 播完后移除时间线，静止帧不再保留显示刷新订阅。
+                TomatoFrame(motion: currentMotion, time: TomatoPlayback.duration(for: currentMotion, loops: loops)).equatable()
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
+                    let elapsed = timeline.date.timeIntervalSince(startedAt)
+                    let seconds = TomatoPlayback.frame(motion: currentMotion, elapsed: elapsed, loops: loops).time
+                    TomatoFrame(motion: currentMotion, time: seconds).equatable()
+                }
             }
         }
         .frame(width: size, height: size)
@@ -78,6 +85,20 @@ struct TomatoCharacter: View {
         stopTask?.cancel()
         stopTask = nil
         hasFinished = true
+    }
+}
+
+/// 只在动作或帧时间变化时重画，父视图的倒计时变化不会重新提交静止 Canvas。
+private struct TomatoFrame: View, Equatable {
+    var motion: TomatoCharacter.Motion
+    var time: TimeInterval
+
+    var body: some View {
+        let currentMotion = motion
+        let seconds = time
+        Canvas { context, size in
+            TomatoRenderer.draw(in: context, scale: size.width / 100, motion: currentMotion, t: seconds)
+        }
     }
 }
 

@@ -111,6 +111,8 @@ xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -derivedDataPath ~/Libra
 截图回归：`TEST_RUNNER_EYEBREAK_SNAPSHOT_DIR=EyeBreakSnapshots xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -derivedDataPath ~/Library/Developer/Xcode/DerivedData/EyeBreak-build test -testLanguage zh-Hans`，再将末尾语言改为 `en` 单独运行一次；不设置变量时默认跳过截图。
 PNG 输出到测试 App 容器的 `tmp/EyeBreakSnapshots/`（每张图的完整路径会打印在测试日志中），文件名带语言和深浅外观；相对目录名始终解析到容器 tmp，绝对路径也必须位于该 tmp 内。
 
+性能基准（默认跳过，约一分钟，需屏幕解锁、窗口可见并关闭系统「减少动态效果」）：`TEST_RUNNER_EYEBREAK_PERF=1 xcodebuild -project EyeBreak.xcodeproj -scheme EyeBreak -configuration Release -enableCodeCoverage NO -derivedDataPath ~/Library/Developer/Xcode/DerivedData/EyeBreak-build test -only-testing:EyeBreakTests/PerformanceBenchmarkTests -testLanguage zh-Hans ENABLE_TESTABILITY=YES`；日志中的 `EYEBREAK_PERF` 行输出各场景 CPU 百分比，也可直接设置 `EYEBREAK_PERF=1`。
+
 构建目录放在 `~/Library/Developer/Xcode/DerivedData/` 下，而不是项目里：项目在「文稿」文件夹中，从这里运行的 App 会反复弹出访问「文稿」的权限提示。
 
 以 10 秒测试间隔启动 Debug 版，并自动开始计时：

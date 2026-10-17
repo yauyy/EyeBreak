@@ -154,38 +154,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-private struct MenuBarLabel: View {
-    @ObservedObject var model: EyeBreakModel
+struct MenuBarLabel: View {
+    let model: EyeBreakModel
     @AppStorage(EyeBreakConfig.showMenuBarTimeKey) private var showTime = false
 
     var body: some View {
-        Image(nsImage: MenuBarIcon.compose(icon: NSImage(named: assetName) ?? NSImage(), text: showTime ? model.menuBarText : nil))
-            .accessibilityLabel(accessibility)
+        MenuBarLabelContent(model: model, showsTime: showTime)
+    }
+}
+
+/// 偏好由外层读取，使测试的 defaultAppStorage 和设置窗口的修改都能正常传入。
+private struct MenuBarLabelContent: View {
+    @StateObject private var state: MenuBarLabelState
+    let showsTime: Bool
+
+    init(model: EyeBreakModel, showsTime: Bool) {
+        _state = StateObject(wrappedValue: MenuBarLabelState(model: model, showsTime: showsTime))
+        self.showsTime = showsTime
     }
 
-    /// 单色番茄仔剪影，表情随状态变化（Assets 中的 MenuBar*，由 Design/style 导出）
-    private var assetName: String {
-        switch model.phase {
-        case .working: return "MenuBarWorking"
-        case .awaitingBreak: return "MenuBarAwaiting"
-        case .resting: return "MenuBarResting"
-        case .idle, .paused, .away, .offHours: return "MenuBarIdle"
-        }
-    }
-
-    private var accessibility: String {
-        let state: String
-        switch model.phase {
-        case .working: state = String(localized: "专注中")
-        case .awaitingBreak: state = String(localized: "等待休息")
-        case .resting: state = String(localized: "休息中")
-        case .away: state = String(localized: "离开中")
-        case .offHours: state = String(localized: "工作时段外")
-        case .idle, .paused: state = String(localized: "未在计时")
-        }
-        if let text = model.menuBarText, model.phase != .awaitingBreak {
-            return String(localized: "EyeBreak \(state)，剩余 \(text)")
-        }
-        return "EyeBreak " + state
+    var body: some View {
+        Image(nsImage: MenuBarIcon.compose(assetName: state.presentation.assetName, text: state.presentation.text))
+            .accessibilityLabel(state.presentation.accessibility)
+            .onChange(of: showsTime) { state.setShowsTime($0) }
     }
 }

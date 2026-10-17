@@ -1,3 +1,5 @@
+// 这些界面回归依赖 Debug 专用状态注入；Release 构建仍可单独运行性能基准。
+#if DEBUG
 import AppKit
 import SwiftUI
 import Testing
@@ -165,3 +167,5 @@ struct MenuWindowTests {
         #expect(abs(size.height - height) <= 1)
     }
 }
+
+#endif

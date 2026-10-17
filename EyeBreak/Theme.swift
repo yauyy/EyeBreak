@@ -130,7 +130,7 @@ struct RingView<Content: View>: View {
                 .trim(from: 0, to: remaining)
                 .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 1), value: remaining)
+                // 按秒更新即可；一秒长的插值会让常驻菜单和面板持续按显示器帧率重绘。
             content
         }
     }
