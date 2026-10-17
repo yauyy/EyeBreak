@@ -5,8 +5,11 @@ import SwiftUI
 /// 跟随系统深浅：深色模式下是「夜间番茄」，深可可底、奶油白文字，番茄红和叶子绿稍微提亮。
 enum Theme {
     static let tomato = dynamic(light: (0.94, 0.33, 0.27), dark: (1.00, 0.42, 0.34))
-    static let tomatoDeep = dynamic(light: (0.80, 0.22, 0.18), dark: (0.76, 0.25, 0.19))
+    static let tomatoDeep = dynamic(light: (0.56, 0.16, 0.13), dark: (0.52, 0.18, 0.14))
     static let leaf = dynamic(light: (0.30, 0.73, 0.40), dark: (0.38, 0.80, 0.47))
+    /// 白字专用填充色：保留番茄红、叶子绿的色相，深浅外观下的对比度都至少为 4.5:1。
+    static let tomatoFill = dynamic(light: (0.79, 0.28, 0.23), dark: (0.75, 0.31, 0.25))
+    static let leafFill = dynamic(light: (0.21, 0.51, 0.28), dark: (0.24, 0.51, 0.30))
     /// 页面底色
     static let cream = dynamic(light: (1.00, 0.97, 0.94), dark: (0.16, 0.13, 0.11))
     /// 卡片底色
@@ -108,7 +111,7 @@ struct PillButtonStyle: ButtonStyle {
 
     private static let shape = RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
 
-    private var fill: Color { kind == .primary ? Theme.tomato : Theme.surface }
+    private var fill: Color { kind == .primary ? Theme.tomatoFill : Theme.surface }
     private var base: Color { kind == .primary ? Theme.tomatoDeep : Theme.creamDeep }
 }
 

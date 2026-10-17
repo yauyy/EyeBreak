@@ -11,6 +11,8 @@ struct LocalizationTests {
         ("休息一下眼睛吧", "Time to rest your eyes"),
         ("开始休息", "Start break"),
         ("看看 6 米外", "Look 20 feet away"),
+        ("下一轮生效", "Takes effect next round"),
+        ("下次休息生效", "Takes effect next break"),
     ])
     func englishStrings(key: String, english: String) throws {
         #expect(try englishBundle().localizedString(forKey: key, value: nil, table: nil) == english)

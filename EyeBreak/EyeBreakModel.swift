@@ -43,6 +43,10 @@ final class EyeBreakModel: ObservableObject {
         var savedAt: Date
         /// 工作时段外用户手动开始了计时（旧版本快照没有这个字段）
         var overridesSchedule: Bool?
+        /// 本轮是否为稍后提醒；旧版本缺失时按普通专注恢复
+        var isSnoozing: Bool?
+        /// 本轮专注实际总时长；旧版本缺失时使用当前专注设置
+        var roundTotal: TimeInterval?
     }
 
     @Published private(set) var phase: Phase = .idle {
@@ -97,6 +101,8 @@ final class EyeBreakModel: ObservableObject {
     private let snoozeInterval: TimeInterval
     /// 当前这一轮专注的总时长（正常是专注时长，稍后提醒时是推迟的时长），用于计算进度
     private var roundTotal: TimeInterval
+    /// 本次已经开始的休息实际总时长，修改设置只影响下一次休息
+    private var currentRestDuration: TimeInterval
     private let usesSystemTimer: Bool
     private let logger = Logger(subsystem: "EyeBreak", category: "timer")
 
@@ -149,6 +155,7 @@ final class EyeBreakModel: ObservableObject {
         self.awayThreshold = awayThreshold
         self.snoozeInterval = snoozeInterval
         roundTotal = workInterval
+        currentRestDuration = restDuration
         self.usesSystemTimer = usesSystemTimer
         pausedRemaining = workInterval
         remainingSeconds = Self.displaySeconds(workInterval)
@@ -157,6 +164,21 @@ final class EyeBreakModel: ObservableObject {
 
     var isWorking: Bool { phase == .working }
     var isOnBreak: Bool { phase == .awaitingBreak || phase == .resting }
+
+    /// 当前专注轮次的实际总时长，稍后提醒时是推迟的时长。
+    var currentRoundTotal: TimeInterval { roundTotal }
+    /// 本次已经开始的休息实际时长，不随设置变化。
+    var currentBreakDuration: TimeInterval { currentRestDuration }
+
+    /// 专注或暂停按本轮实际时长比较；稍后提醒结束后的下一轮才使用专注设置。
+    var workIntervalChangePending: Bool {
+        (phase == .working || phase == .paused) && workInterval != currentRoundTotal
+    }
+
+    /// 只有已经开始的休息才会保留旧时长，等待休息时修改立即生效。
+    var restDurationChangePending: Bool {
+        phase == .resting && restDuration != currentBreakDuration
+    }
 
     var formattedRemaining: String {
         String(format: "%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)
@@ -176,7 +198,8 @@ final class EyeBreakModel: ObservableObject {
     var progress: Double {
         let total: TimeInterval
         switch phase {
-        case .awaitingBreak, .resting: total = restDuration
+        case .awaitingBreak: total = restDuration
+        case .resting: total = currentRestDuration
         case .working, .paused: total = roundTotal
         case .idle, .away, .offHours: total = workInterval
         }
@@ -188,13 +211,22 @@ final class EyeBreakModel: ObservableObject {
 
     /// 开始 / 继续专注。仅在未开始或暂停时有效，因此连续点击不会产生并行计时。
     func start() {
+        start(userInitiated: true)
+    }
+
+    /// 自动启动专注，仍然遵守工作时段，不把自动行为视为用户覆盖。
+    func startAutomatically() {
+        start(userInitiated: false)
+    }
+
+    private func start(userInitiated: Bool) {
         switch phase {
-        case .idle, .away: beginWorking(remaining: workInterval)
-        case .offHours:
-            // 工作时段外用户主动开始：本次照常计时，直到下次进入工作时段
-            overridesSchedule = true
+        case .idle, .away, .offHours:
+            if userInitiated { applyUserScheduleOverride() }
             beginWorking(remaining: workInterval)
-        case .paused: resumeWorking()
+        case .paused:
+            if userInitiated { applyUserScheduleOverride() }
+            resumeWorking()
         case .working, .awaitingBreak, .resting: return
         }
     }
@@ -214,19 +246,16 @@ final class EyeBreakModel: ObservableObject {
 
     /// 重新计时：无论当前处于哪个阶段，都立即开始新一轮完整专注。
     func reset() {
-        // 工作时段外手动重来，同样视为主动开始
-        if phase == .offHours || !isWorkTime() { overridesSchedule = true }
+        applyUserScheduleOverride()
         reminder.cancelPendingReminders()
         beginWorking(remaining: workInterval)
     }
 
     func startBreak() {
         guard phase == .awaitingBreak else { return }
+        applyUserScheduleOverride()
         reminder.cancelPendingReminders()
-        deadline = now().addingTimeInterval(restDuration)
-        phase = .resting
-        startTicker()
-        updateDisplay()
+        beginResting()
     }
 
     /// 立即开始休息（快捷指令用）：不用等专注结束，马上开始一次眺望休息
@@ -235,13 +264,11 @@ final class EyeBreakModel: ObservableObject {
         case .awaitingBreak:
             startBreak()
         case .idle, .working, .paused, .away, .offHours:
+            applyUserScheduleOverride()
             exerciseIndex += 1
             reminder.cancelPendingReminders()
             deferReason = nil
-            deadline = now().addingTimeInterval(restDuration)
-            phase = .resting
-            startTicker()
-            updateDisplay()
+            beginResting()
         case .resting:
             return
         }
@@ -260,6 +287,7 @@ final class EyeBreakModel: ObservableObject {
     /// 稍后提醒：收起提醒，过一会儿再提醒一次。
     func snooze() {
         guard phase == .awaitingBreak else { return }
+        applyUserScheduleOverride()
         reminder.cancelPendingReminders()
         let interval = effectiveSnoozeInterval
         beginWorking(remaining: interval, roundTotal: interval, snoozing: true)
@@ -268,6 +296,7 @@ final class EyeBreakModel: ObservableObject {
     /// 跳过本次休息 / 提前结束休息：不播放庆祝，直接开始新一轮专注。
     func skipBreak() {
         guard isOnBreak else { return }
+        applyUserScheduleOverride()
         reminder.cancelPendingReminders()
         beginWorking(remaining: workInterval)
     }
@@ -318,7 +347,10 @@ final class EyeBreakModel: ObservableObject {
         case .away: saved = .away
         case .offHours: saved = .offHours
         }
-        return Snapshot(phase: saved, remaining: remaining, savedAt: now(), overridesSchedule: overridesSchedule)
+        return Snapshot(
+            phase: saved, remaining: remaining, savedAt: now(), overridesSchedule: overridesSchedule,
+            isSnoozing: isSnoozing, roundTotal: roundTotal
+        )
     }
 
     /// 启动时恢复上次退出前的状态。离开超过离开阈值（例如重启电脑）视为已经休息过。
@@ -327,15 +359,26 @@ final class EyeBreakModel: ObservableObject {
         let elapsed = max(0, now().timeIntervalSince(snapshot.savedAt))
         let wasAwayLong = elapsed >= awayThreshold
         overridesSchedule = snapshot.overridesSchedule ?? false
+        let restoredTotal = snapshot.roundTotal.flatMap { $0 > 0 ? $0 : nil } ?? workInterval
+        let restoredSnoozing = snapshot.isSnoozing ?? false
         switch snapshot.phase {
         case .idle:
             return
         case .paused:
-            pausedRemaining = min(max(0, snapshot.remaining), workInterval)
+            roundTotal = restoredTotal
+            isSnoozing = restoredSnoozing
+            pausedRemaining = min(max(0, snapshot.remaining), restoredTotal)
             phase = .paused
             updateDisplay()
         case .working:
-            beginWorking(remaining: wasAwayLong ? workInterval : max(0, snapshot.remaining - elapsed))
+            if wasAwayLong {
+                beginWorking(remaining: workInterval)
+            } else {
+                beginWorking(
+                    remaining: max(0, snapshot.remaining - elapsed),
+                    roundTotal: restoredTotal, snoozing: restoredSnoozing
+                )
+            }
         case .awaitingBreak, .resting:
             if wasAwayLong {
                 beginWorking(remaining: workInterval)
@@ -483,6 +526,19 @@ final class EyeBreakModel: ObservableObject {
         beginWorking(remaining: workInterval)
     }
 
+    /// 所有用户主动开始计时的入口统一处理，自动恢复和自动下一轮不调用这里。
+    private func applyUserScheduleOverride() {
+        if !isWorkTime() { overridesSchedule = true }
+    }
+
+    private func beginResting() {
+        currentRestDuration = restDuration
+        deadline = now().addingTimeInterval(currentRestDuration)
+        phase = .resting
+        startTicker()
+        updateDisplay()
+    }
+
     /// 开始新一轮专注计时（默认一整轮）
     private func beginWorking(remaining: TimeInterval, roundTotal total: TimeInterval? = nil, snoozing: Bool = false) {
         roundTotal = total ?? workInterval
@@ -571,7 +627,7 @@ final class EyeBreakModel: ObservableObject {
                 beginWorking(remaining: workInterval)
             } else {
                 logger.notice("System did wake, resuming work")
-                start()
+                resumeWorking()
             }
         } else if newRoundAfterWake {
             newRoundAfterWake = false

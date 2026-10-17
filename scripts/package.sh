@@ -4,6 +4,7 @@
 # 可选环境变量：
 #   VERSION=1.2               覆盖 App 版本号（默认取工程里的 MARKETING_VERSION）
 #   BUILD=42                  覆盖构建号（默认取 git 提交数，保证每次发布递增；Sparkle 靠它判断新旧）
+#   SKIP_BUILD_CHECK=1        跳过线上构建号校验（仅用于本机测试打包，禁止用于发布）
 #   SPARKLE_KEY_FILE=path     用文件里的私钥签名（默认从钥匙串读取 generate_keys 生成的私钥）
 #   SPARKLE_PUBLIC_KEY=...    覆盖内置公钥（仅用于本机测试）
 #   SPARKLE_FEED_URL=...      覆盖更新源地址（仅用于本机测试）
@@ -22,8 +23,71 @@ setting() {
     | awk -v key="$1" '$1 == key && $2 == "=" { sub(/^[^=]*= /, ""); print; exit }'
 }
 
+normalize_build_number() {
+  local value="$1"
+  while [[ "$value" == 0* && ${#value} -gt 1 ]]; do
+    value="${value#0}"
+  done
+  printf '%s' "$value"
+}
+
+build_number_is_greater() {
+  # 用长度和字典序比较，避免构建号超过 shell 整数范围时溢出。
+  [[ ${#1} -gt ${#2} || ( ${#1} -eq ${#2} && "$1" > "$2" ) ]]
+}
+
+check_build_number() {
+  if [[ ! "$BUILD" =~ '^[0-9]+$' ]]; then
+    echo "错误：新构建号必须是非负十进制整数，当前为：$BUILD" >&2
+    exit 1
+  fi
+  if [[ "${SKIP_BUILD_CHECK:-}" == 1 ]]; then
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" >&2
+    echo "警告：SKIP_BUILD_CHECK=1，已跳过线上构建号校验！仅用于本机测试，禁止发布本次产物。" >&2
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" >&2
+    return
+  fi
+
+  # 始终检查正式更新源，不能被本机测试用的 SPARKLE_FEED_URL 覆盖。
+  local latest_feed="https://github.com/yauyy/EyeBreak/releases/latest/download/appcast.xml"
+  local feed_xml version_count version_value version_index latest_build=0
+  local version_xpath="//*[local-name()='version' and namespace-uri()='http://www.andymatuschak.org/xml-namespaces/sparkle'] | //@*[local-name()='version' and namespace-uri()='http://www.andymatuschak.org/xml-namespaces/sparkle']"
+  if ! feed_xml="$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 45 "$latest_feed")"; then
+    echo "错误：无法读取线上 appcast，未能确认最新构建号，已停止打包。" >&2
+    exit 1
+  fi
+  if ! printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --noout - 2>/dev/null; then
+    echo "错误：线上 appcast XML 解析失败，已停止打包。" >&2
+    exit 1
+  fi
+  # 兼容 version 元素和 enclosure 上的 version 属性，两者都按 Sparkle 命名空间读取。
+  if ! version_count="$(printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --xpath "count($version_xpath)" - 2>/dev/null)" \
+      || [[ ! "$version_count" =~ '^[0-9]+$' || "$version_count" == 0 ]]; then
+    echo "错误：线上 appcast 中没有可读取的 sparkle:version，已停止打包。" >&2
+    exit 1
+  fi
+  for (( version_index = 1; version_index <= version_count; version_index++ )); do
+    if ! version_value="$(printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --xpath "string(($version_xpath)[$version_index])" - 2>/dev/null)" \
+        || [[ ! "$version_value" =~ '^[0-9]+$' ]]; then
+      echo "错误：线上 appcast 含有无法解析的 sparkle:version，已停止打包。" >&2
+      exit 1
+    fi
+    version_value="$(normalize_build_number "$version_value")"
+    if build_number_is_greater "$version_value" "$latest_build"; then
+      latest_build="$version_value"
+    fi
+  done
+  if ! build_number_is_greater "$(normalize_build_number "$BUILD")" "$latest_build"; then
+    echo "错误：新构建号 $BUILD 必须严格大于线上最大构建号 $latest_build，已停止打包。" >&2
+    echo "请增加提交数或使用 BUILD 指定更大的构建号。" >&2
+    exit 1
+  fi
+  echo "==> 构建号校验通过：$BUILD > $latest_build"
+}
+
 VERSION="${VERSION:-$(setting MARKETING_VERSION)}"
 BUILD="${BUILD:-$(git rev-list --count HEAD)}"
+check_build_number
 PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-$(setting SPARKLE_PUBLIC_KEY)}"
 FEED_URL="${SPARKLE_FEED_URL:-$(setting SPARKLE_FEED_URL)}"
 DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/yauyy/EyeBreak/releases/download/v$VERSION/}"

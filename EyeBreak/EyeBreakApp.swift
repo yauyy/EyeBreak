@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
         breakPanel = BreakPanelController(model: model, stats: stats)
         if EyeBreakConfig.autoStart {
-            model.start()
+            model.startAutomatically()
         } else if let snapshot = EyeBreakConfig.loadSnapshot() {
             model.restore(snapshot)
         }

@@ -251,7 +251,7 @@ private struct CelebrationContent: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.leaf))
+                    .background(Capsule().fill(Theme.leafFill))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -2,7 +2,7 @@
 
 [中文](README.md) | English
 
-A cute tomato that reminds you to rest your eyes. EyeBreak lives in the macOS menu bar: after each focus session it asks you to look away for a few seconds, then celebrates and starts the next round.
+A cute tomato that reminds you to rest your eyes. EyeBreak lives in the macOS menu bar and, by default, reminds you to take a 20-second break every 20 minutes. Follow the tomato through rotating eye exercises: look far away, blink, close your eyes to relax, and roll your eyes. It then celebrates and starts the next round.
 
 ## Download
 

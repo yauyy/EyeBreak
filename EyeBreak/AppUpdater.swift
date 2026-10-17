@@ -54,7 +54,7 @@ final class AppUpdater: NSObject, ObservableObject {
     }
 }
 
-extension AppUpdater: @preconcurrency SPUUpdaterDelegate {
+extension AppUpdater: SPUUpdaterDelegate {
     #if DEBUG
     /// 仅 Debug：-EyeBreakTestFeedURL 指向本地更新源，用于在本机测试自动更新
     func feedURLString(for updater: SPUUpdater) -> String? {

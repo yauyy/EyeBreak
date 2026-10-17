@@ -339,9 +339,122 @@ struct EyeBreakModelTests {
         finishWorkRound()
         model.startBreak()
         advance(5)
+        #expect(model.progress == 0.25)
         model.setRestDuration(60)
+        #expect(model.formattedRemaining == "00:15")
+        #expect(model.progress == 0.25)
         advance(15)
         #expect(model.phase == .working)
+
+        advance(20 * 60)
+        model.startBreak()
+        #expect(model.formattedRemaining == "01:00")
+        advance(15)
+        #expect(model.progress == 0.25)
+    }
+
+    @Test("等待休息时修改时长，显示和即将开始的休息立即生效")
+    func changeRestWhileAwaitingBreak() {
+        finishWorkRound()
+        model.setRestDuration(60)
+        #expect(model.formattedRemaining == "01:00")
+        #expect(model.progress == 0)
+
+        model.startBreak()
+        #expect(model.formattedRemaining == "01:00")
+        advance(15)
+        #expect(model.formattedRemaining == "00:45")
+        #expect(model.progress == 0.25)
+    }
+
+    @Test("专注或暂停中的专注设置只有不同于本轮时长时才提示下一轮生效", arguments: [false, true])
+    func workIntervalChangePendingWhileFocusing(paused: Bool) {
+        #expect(!model.workIntervalChangePending)
+        #expect(!model.restDurationChangePending)
+        model.start()
+        if paused { model.pause() }
+        #expect(model.currentRoundTotal == 1200)
+        #expect(!model.workIntervalChangePending)
+
+        model.setWorkInterval(1800)
+        #expect(model.workIntervalChangePending)
+        #expect(model.currentRoundTotal == 1200)
+        model.setWorkInterval(1200)
+        #expect(!model.workIntervalChangePending)
+        model.setRestDuration(60)
+        #expect(!model.restDurationChangePending)
+    }
+
+    @Test("稍后提醒的专注和暂停状态按本次短轮时长判断下一轮提示", arguments: [false, true])
+    func workIntervalChangePendingWhileSnoozing(paused: Bool) {
+        finishWorkRound()
+        model.snooze()
+        if paused { model.pause() }
+        #expect(model.currentRoundTotal == 300)
+        #expect(model.workIntervalChangePending)
+
+        model.setWorkInterval(300)
+        #expect(!model.workIntervalChangePending)
+        model.setWorkInterval(1200)
+        #expect(model.workIntervalChangePending)
+        #expect(model.currentRoundTotal == 300)
+    }
+
+    @Test("休息设置只有休息中且不同于本次实际时长时才提示下次休息生效")
+    func restDurationChangePendingWhileResting() {
+        model.startBreakNow()
+        #expect(model.currentBreakDuration == 20)
+        #expect(!model.restDurationChangePending)
+        model.setRestDuration(60)
+        #expect(model.restDurationChangePending)
+        #expect(model.currentBreakDuration == 20)
+        model.setRestDuration(20)
+        #expect(!model.restDurationChangePending)
+        model.setWorkInterval(1800)
+        #expect(!model.workIntervalChangePending)
+    }
+
+    @Test("专注和等待休息时修改休息设置不提示下一轮，接下来开始休息立即采用新值", arguments: [false, true])
+    func restDurationChangeIsImmediateBeforeBreak(awaitingBreak: Bool) {
+        model.start()
+        model.setWorkInterval(1800)
+        if awaitingBreak { advance(1200) }
+        model.setRestDuration(60)
+        #expect(!model.restDurationChangePending)
+        if !awaitingBreak { advance(1200) }
+        #expect(model.phase == .awaitingBreak)
+        #expect(!model.workIntervalChangePending)
+        #expect(!model.restDurationChangePending)
+
+        model.startBreak()
+        #expect(model.currentBreakDuration == 60)
+        #expect(model.remainingSeconds == 60)
+        #expect(!model.workIntervalChangePending)
+        #expect(!model.restDurationChangePending)
+    }
+
+    @Test("未开始、离开电脑和工作时段外均隐藏下一轮生效提示")
+    func durationChangeHintsHiddenWhileInactive() {
+        model.setWorkInterval(1800)
+        model.setRestDuration(60)
+        #expect(model.phase == .idle)
+        #expect(!model.workIntervalChangePending)
+        #expect(!model.restDurationChangePending)
+
+        model.start()
+        model.setWorkInterval(1200)
+        #expect(model.workIntervalChangePending)
+        clock.idle = 600
+        advance(1)
+        #expect(model.phase == .away)
+        #expect(!model.workIntervalChangePending)
+        #expect(!model.restDurationChangePending)
+
+        clock.workTime = false
+        advance(1)
+        #expect(model.phase == .offHours)
+        #expect(!model.workIntervalChangePending)
+        #expect(!model.restDurationChangePending)
     }
 
     // MARK: - 睡眠与退出
@@ -682,6 +795,115 @@ struct EyeBreakModelTests {
 
     // MARK: - 工作时段
 
+    @Test("工作时段外从未开始点开始：视为用户覆盖，不被下一次刷新冻结")
+    func startFromIdleOutsideWorkHours() {
+        clock.workTime = false
+        model.start()
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.remainingSeconds == 1199)
+        #expect(model.snapshot().overridesSchedule == true)
+    }
+
+    @Test("工作时段外从暂停点继续：保留剩余时间并视为用户覆盖")
+    func resumeFromPausedOutsideWorkHours() {
+        model.start()
+        advance(100)
+        model.pause()
+        clock.workTime = false
+        advance(1)
+        model.start()
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.remainingSeconds == 1099)
+        #expect(model.snapshot().overridesSchedule == true)
+    }
+
+    @Test("工作时段外手动重来：视为用户覆盖")
+    func resetOutsideWorkHours() {
+        clock.workTime = false
+        model.reset()
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.snapshot().overridesSchedule == true)
+    }
+
+    @Test("工作时段外立即开始休息：覆盖贯穿休息和自然开始的下一轮")
+    func immediateBreakOutsideWorkHoursOverridesSchedule() {
+        clock.workTime = false
+        model.startBreakNow()
+        #expect(model.phase == .resting)
+        #expect(model.snapshot().overridesSchedule == true)
+        advance(20)
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.snapshot().overridesSchedule == true)
+    }
+
+    @Test("工作时段外主动开始休息、跳过或稍后提醒都视为用户覆盖", arguments: ["startBreak", "skipBreak", "snooze"])
+    func breakActionsOutsideWorkHoursOverrideSchedule(action: String) {
+        finishWorkRound()
+        clock.workTime = false
+        switch action {
+        case "startBreak": model.startBreak()
+        case "skipBreak": model.skipBreak()
+        default: model.snooze()
+        }
+        advance(1)
+        #expect(model.phase == (action == "startBreak" ? .resting : .working))
+        #expect(model.snapshot().overridesSchedule == true)
+    }
+
+    @Test("工作时段外自动启动：不设置用户覆盖并正常冻结")
+    func automaticStartDoesNotOverrideSchedule() {
+        clock.workTime = false
+        model.startAutomatically()
+        #expect(model.snapshot().overridesSchedule == false)
+        advance(1)
+        #expect(model.phase == .offHours)
+    }
+
+    @Test("睡眠唤醒的自动恢复不设置用户覆盖", arguments: [60.0, 600.0])
+    func automaticWakeDoesNotOverrideSchedule(sleepDuration: TimeInterval) {
+        model.start()
+        advance(100)
+        model.systemWillSleep()
+        clock.workTime = false
+        clock.advance(sleepDuration)
+        model.systemDidWake()
+        #expect(model.snapshot().overridesSchedule == false)
+        model.tick()
+        #expect(model.phase == .offHours)
+    }
+
+    @Test("离开后自动回来不创建用户覆盖")
+    func automaticReturnDoesNotOverrideSchedule() {
+        model.start()
+        clock.idle = 600
+        advance(1)
+        clock.idle = 0
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.snapshot().overridesSchedule == false)
+        clock.workTime = false
+        advance(1)
+        #expect(model.phase == .offHours)
+    }
+
+    @Test("进入工作时段自动开始的一轮不创建用户覆盖")
+    func automaticScheduleStartDoesNotOverrideSchedule() {
+        clock.workTime = false
+        model.startAutomatically()
+        advance(1)
+        clock.workTime = true
+        advance(1)
+        #expect(model.phase == .working)
+        #expect(model.snapshot().overridesSchedule == false)
+        clock.workTime = false
+        advance(1)
+        #expect(model.phase == .offHours)
+    }
+
     @Test("专注中离开工作时段：冻结计时、不提醒")
     func leavesWorkHoursWhileWorking() {
         model.start()
@@ -760,6 +982,8 @@ struct EyeBreakModelTests {
         advance(5)
         #expect(model.phase == .resting)
         advance(15)
+        #expect(model.phase == .working)
+        #expect(model.snapshot().overridesSchedule == false)
         advance(1)
         #expect(model.phase == .offHours)
         #expect(spy.breakCompleteSounds == 1)
@@ -771,10 +995,141 @@ struct EyeBreakModelTests {
     private func relaunch() -> EyeBreakModel {
         let clock = clock
         return EyeBreakModel(
-            workInterval: 20 * 60, restDuration: 20, reminder: spy,
+            workInterval: model.workInterval, restDuration: model.restDuration, reminder: spy,
             now: { clock.now }, idleTime: { clock.idle }, isInMeeting: { clock.inMeeting }, isFullscreen: { clock.fullscreen }, isWorkTime: { clock.workTime }, awayThreshold: 5 * 60,
-            usesSystemTimer: false
+            exerciseIndex: model.exerciseIndex, usesSystemTimer: false
         )
+    }
+
+    @Test("稍后提醒中重启：恢复短计时进度，到点不额外轮换休息动作")
+    func restoreSnoozingWhileWorking() {
+        finishWorkRound()
+        model.snooze()
+        advance(60)
+        let snapshot = model.snapshot()
+        #expect(snapshot.isSnoozing == true)
+        #expect(snapshot.roundTotal == 300)
+        clock.advance(30)
+
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .working)
+        #expect(reopened.isSnoozing)
+        #expect(reopened.remainingSeconds == 210)
+        #expect(abs(reopened.progress - 0.3) < 0.000_001)
+        #expect(reopened.currentRoundTotal == 300)
+        #expect(reopened.workIntervalChangePending)
+        let exerciseIndex = reopened.exerciseIndex
+        clock.advance(210)
+        reopened.tick()
+        #expect(reopened.phase == .awaitingBreak)
+        #expect(reopened.exerciseIndex == exerciseIndex)
+    }
+
+    @Test("暂停中的稍后提醒重启：长时间后仍保留短计时进度和休息动作")
+    func restoreSnoozingWhilePaused() {
+        finishWorkRound()
+        model.snooze()
+        advance(60)
+        model.pause()
+        let snapshot = model.snapshot()
+        clock.advance(3600)
+
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .paused)
+        #expect(reopened.isSnoozing)
+        #expect(reopened.remainingSeconds == 240)
+        #expect(abs(reopened.progress - 0.2) < 0.000_001)
+        #expect(reopened.currentRoundTotal == 300)
+        #expect(reopened.workIntervalChangePending)
+        let exerciseIndex = reopened.exerciseIndex
+        reopened.start()
+        clock.advance(240)
+        reopened.tick()
+        #expect(reopened.phase == .awaitingBreak)
+        #expect(reopened.exerciseIndex == exerciseIndex)
+    }
+
+    @Test("稍后提醒中退出很久再打开：视为已经休息，恢复普通完整专注")
+    func restoreSnoozingAfterLongGap() {
+        finishWorkRound()
+        model.snooze()
+        let snapshot = model.snapshot()
+        clock.advance(600)
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .working)
+        #expect(!reopened.isSnoozing)
+        #expect(reopened.remainingSeconds == 1200)
+        #expect(reopened.progress == 0)
+    }
+
+    @Test("旧版本缺少稍后提醒和本轮总时长字段的快照按普通专注恢复", arguments: [false, true])
+    func restoreLegacySnapshot(paused: Bool) throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "phase": paused ? "paused" : "working",
+            "remaining": 240,
+            "savedAt": clock.now.timeIntervalSinceReferenceDate
+        ])
+        let snapshot = try JSONDecoder().decode(EyeBreakModel.Snapshot.self, from: data)
+        #expect(snapshot.isSnoozing == nil)
+        #expect(snapshot.roundTotal == nil)
+
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == (paused ? .paused : .working))
+        #expect(!reopened.isSnoozing)
+        #expect(reopened.remainingSeconds == 240)
+        #expect(reopened.progress == 0.8)
+        reopened.start()
+        clock.advance(240)
+        reopened.tick()
+        #expect(reopened.phase == .awaitingBreak)
+        #expect(reopened.exerciseIndex == 0)
+    }
+
+    @Test("本轮专注中改短设置再重启：保留原有总时长和剩余时间", arguments: [false, true])
+    func restoreRoundTotalAfterPreferenceChange(paused: Bool) {
+        model.start()
+        advance(100)
+        model.setWorkInterval(600)
+        if paused { model.pause() }
+        let snapshot = model.snapshot()
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.remainingSeconds == 1100)
+        #expect(abs(reopened.progress - 100.0 / 1200) < 0.000_001)
+        #expect(!reopened.isSnoozing)
+        #expect(reopened.currentRoundTotal == 1200)
+        #expect(reopened.workIntervalChangePending)
+        reopened.setWorkInterval(1200)
+        #expect(!reopened.workIntervalChangePending)
+    }
+
+    @Test("休息中改时长后重启：重新等待休息时使用新设置，不沿用旧休息进度")
+    func restoreRestingWithChangedDuration() {
+        finishWorkRound()
+        model.startBreak()
+        advance(5)
+        model.setRestDuration(60)
+        let snapshot = model.snapshot()
+        clock.advance(10)
+
+        let reopened = relaunch()
+        reopened.restore(snapshot)
+        #expect(reopened.phase == .awaitingBreak)
+        #expect(reopened.remainingSeconds == 60)
+        #expect(reopened.progress == 0)
+        #expect(!reopened.restDurationChangePending)
+        #expect(spy.delivered.count == 1)
+        reopened.startBreak()
+        #expect(reopened.currentBreakDuration == 60)
+        #expect(!reopened.restDurationChangePending)
+        clock.advance(15)
+        reopened.tick()
+        #expect(reopened.remainingSeconds == 45)
+        #expect(reopened.progress == 0.25)
     }
 
     @Test("退出时保存的是退出前的真实状态，而不是清理后的未开始")
@@ -798,6 +1153,8 @@ struct EyeBreakModelTests {
         reopened.restore(snapshot)
         #expect(reopened.phase == .working)
         #expect(reopened.formattedRemaining == "17:20")
+        #expect(reopened.currentRoundTotal == 1200)
+        #expect(!reopened.workIntervalChangePending)
     }
 
     @Test("专注中退出、隔了很久（如重启）再打开：开始新一轮")

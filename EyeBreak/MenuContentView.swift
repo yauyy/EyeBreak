@@ -150,22 +150,36 @@ struct MenuContentView: View {
 
     private var settings: some View {
         VStack(spacing: 10) {
-            CuteStepper(
-                title: "专注", unit: String(localized: "分钟"),
-                value: Binding(
-                    get: { Int(model.workInterval / 60) },
-                    set: { model.setWorkInterval(TimeInterval($0 * 60)) }
-                ),
-                range: EyeBreakConfig.workMinutesRange, step: 5
-            )
-            CuteStepper(
-                title: "眺望", unit: String(localized: "秒"),
-                value: Binding(
-                    get: { Int(model.restDuration) },
-                    set: { model.setRestDuration(TimeInterval($0)) }
-                ),
-                range: EyeBreakConfig.restSecondsRange, step: 5
-            )
+            VStack(alignment: .leading, spacing: 4) {
+                CuteStepper(
+                    title: "专注", unit: String(localized: "分钟"),
+                    value: Binding(
+                        get: { Int(model.workInterval / 60) },
+                        set: { model.setWorkInterval(TimeInterval($0 * 60)) }
+                    ),
+                    range: EyeBreakConfig.workMinutesRange, step: 5
+                )
+                if model.workIntervalChangePending {
+                    Text("下一轮生效")
+                        .font(Theme.font(11))
+                        .foregroundStyle(Theme.inkSoft)
+                }
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                CuteStepper(
+                    title: "眺望", unit: String(localized: "秒"),
+                    value: Binding(
+                        get: { Int(model.restDuration) },
+                        set: { model.setRestDuration(TimeInterval($0)) }
+                    ),
+                    range: EyeBreakConfig.restSecondsRange, step: 5
+                )
+                if model.restDurationChangePending {
+                    Text("下次休息生效")
+                        .font(Theme.font(11))
+                        .foregroundStyle(Theme.inkSoft)
+                }
+            }
 
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) { showMoreSettings.toggle() }
@@ -299,7 +313,7 @@ private struct SoundPicker: View {
                         .frame(height: Theme.smallControlSize - Theme.Spacing.segmented * 2)
                         .background(
                             RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
-                                .fill(isSelected ? Theme.tomato : .clear)
+                                .fill(isSelected ? Theme.tomatoFill : .clear)
                         )
                         .contentShape(Rectangle())
                 }
@@ -415,7 +429,7 @@ private struct WeekChart: View {
                         .foregroundStyle(earned ? .white : Theme.inkSoft)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(earned ? Theme.tomato : Theme.ink.opacity(0.07)))
+                        .background(Capsule().fill(earned ? Theme.tomatoFill : Theme.ink.opacity(0.07)))
                         .accessibilityLabel(earned ? Text("已解锁：\(achievement.title)") : Text("未解锁：\(achievement.title)"))
                 }
             }

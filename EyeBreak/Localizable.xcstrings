@@ -93,6 +93,26 @@
         }
       }
     },
+    "下一轮生效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes effect next round"
+          }
+        }
+      }
+    },
+    "下次休息生效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes effect next break"
+          }
+        }
+      }
+    },
     "专注": {
       "localizations": {
         "en": {
