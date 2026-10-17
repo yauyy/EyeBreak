@@ -5,6 +5,20 @@ import Testing
 
 @MainActor
 struct ThemeTests {
+    @Test("同一动态颜色在外观切换后重新解析，未缓存旧色")
+    func dynamicColorsResolveForEachAppearance() throws {
+        let light = try #require(NSAppearance(named: .aqua))
+        let dark = try #require(NSAppearance(named: .darkAqua))
+        for themeColor in [Theme.cream, Theme.creamDeep, Theme.ink, Theme.dot, Theme.tomato, Theme.leaf] {
+            let color = NSColor(themeColor)
+            var lightColor: NSColor?
+            var darkColor: NSColor?
+            light.performAsCurrentDrawingAppearance { lightColor = color.usingColorSpace(.sRGB) }
+            dark.performAsCurrentDrawingAppearance { darkColor = color.usingColorSpace(.sRGB) }
+            #expect(try #require(lightColor) != #require(darkColor))
+        }
+    }
+
     @Test("白字填充色在浅色和深色外观下都满足 WCAG 普通文字对比度", arguments: [false, true])
     func fillColorsContrastWithWhite(dark: Bool) throws {
         let appearance = try #require(NSAppearance(named: dark ? .darkAqua : .aqua))

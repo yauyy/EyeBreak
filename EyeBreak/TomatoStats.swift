@@ -41,9 +41,16 @@ final class TomatoStats: ObservableObject {
         self.defaults = defaults
         self.now = now
         self.calendar = calendar
+        counts = [:]
+        reloadFromDefaults()
+    }
+
+    /// 语言重开交接后重新读取旧实例的最终记账，避免启动等待期间完成的番茄被旧缓存覆盖。
+    func reloadFromDefaults() {
         counts = defaults.dictionary(forKey: Self.storageKey) as? [String: Int] ?? [:]
         total = defaults.object(forKey: Self.totalKey) as? Int ?? counts.values.reduce(0, +)
         unlocked = Set((defaults.stringArray(forKey: Self.achievementsKey) ?? []).compactMap(Achievement.init(rawValue:)))
+        justUnlocked = []
         refresh()
     }
 

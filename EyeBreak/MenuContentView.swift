@@ -122,7 +122,7 @@ struct MenuBody: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityHint("打开成就墙")
+                        .accessibilityHint("打开成就页")
                     }
                     .padding(8)
                     .background(RoundedRectangle(cornerRadius: Theme.Radius.card).fill(Theme.creamDeep.opacity(0.6)))
@@ -262,7 +262,10 @@ private struct MenuCountdownRing: View {
     @ObservedObject var schedule: WorkScheduleSettings
 
     var body: some View {
-        RingView(remaining: 1 - model.progress, color: phaseColor) {
+        RingView(
+            remaining: 1 - model.progress, color: phaseColor, phase: model.phase,
+            duration: model.phase == .resting ? model.currentBreakDuration : model.currentRoundTotal
+        ) {
             VStack(spacing: 2) {
                 Text(model.formattedRemaining)
                     .font(Theme.font(36, .bold))
@@ -366,37 +369,10 @@ struct SoundPicker: View {
     let onSelect: (ReminderSound) -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(ReminderSound.allCases) { option in
-                let isSelected = option == selection
-                Button {
-                    onSelect(option)
-                } label: {
-                    Text(verbatim: option.title)
-                        .font(Theme.font(12, .semibold))
-                        .foregroundStyle(isSelected ? .white : Theme.ink)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: Theme.smallControlSize - Theme.Spacing.segmented * 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: Theme.Radius.small, style: .continuous)
-                                .fill(isSelected ? Theme.tomatoFill : .clear)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-            }
-        }
-        .padding(Theme.Spacing.segmented)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Radius.segmented, style: .continuous)
-                .fill(Theme.surface)
+        TomatoSegmentedPicker(
+            options: ReminderSound.allCases, selection: selection,
+            title: { $0.title }, onSelect: onSelect
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.segmented, style: .continuous)
-                .strokeBorder(Theme.creamDeep, lineWidth: 1)
-        )
-        .animation(.easeOut(duration: 0.15), value: selection)
     }
 }
 

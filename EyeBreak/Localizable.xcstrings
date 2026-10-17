@@ -143,6 +143,26 @@
         }
       }
     },
+    "一天内收集 10 个番茄": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collect 10 tomatoes in one day"
+          }
+        }
+      }
+    },
+    "一天内收集 5 个番茄": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collect 5 tomatoes in one day"
+          }
+        }
+      }
+    },
     "三": {
       "localizations": {
         "en": {
@@ -269,6 +289,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Today"
+          }
+        }
+      }
+    },
+    "今天 %lld/%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today %1$lld/%2$lld"
           }
         }
       }
@@ -443,6 +473,16 @@
         }
       }
     },
+    "到点后在屏幕右上角提醒你：开始休息、稍后提醒或跳过": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When it is time, I will remind you at the top right of your screen. Start a break, snooze, or skip."
+          }
+        }
+      }
+    },
     "单日 10 个": {
       "localizations": {
         "en": {
@@ -593,6 +633,16 @@
         }
       }
     },
+    "外观": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
+        }
+      }
+    },
     "工作开始时间": {
       "localizations": {
         "en": {
@@ -703,6 +753,26 @@
         }
       }
     },
+    "已解锁": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocked"
+          }
+        }
+      }
+    },
+    "已解锁 %lld / %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocked %1$lld / %2$lld"
+          }
+        }
+      }
+    },
     "已解锁：%@": {
       "localizations": {
         "en": {
@@ -803,22 +873,22 @@
         }
       }
     },
+    "成就": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Achievements"
+          }
+        }
+      }
+    },
     "成就 %lld/%lld": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Achievements %1$lld/%2$lld"
-          }
-        }
-      }
-    },
-    "成就墙": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Achievements"
           }
         }
       }
@@ -833,12 +903,12 @@
         }
       }
     },
-    "打开成就墙": {
+    "打开成就页": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open achievements"
+            "value": "Open the achievements page"
           }
         }
       }
@@ -873,12 +943,32 @@
         }
       }
     },
+    "收集第一个番茄": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collect your first tomato"
+          }
+        }
+      }
+    },
     "无": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "None"
+          }
+        }
+      }
+    },
+    "无法重新打开 EyeBreak，请稍后重试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not reopen EyeBreak. Please try again."
           }
         }
       }
@@ -1003,12 +1093,12 @@
         }
       }
     },
-    "未解锁：%@": {
+    "未解锁：%@，%@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Locked: %@"
+            "value": "Locked: %1$@, %2$@"
           }
         }
       }
@@ -1063,12 +1153,12 @@
         }
       }
     },
-    "到点后在屏幕右上角提醒你：开始休息、稍后提醒或跳过": {
+    "浅色": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When it is time, I will remind you at the top right of your screen. Start a break, snooze, or skip."
+            "value": "Light"
           }
         }
       }
@@ -1079,6 +1169,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Test: %lld s"
+          }
+        }
+      }
+    },
+    "深色": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
           }
         }
       }
@@ -1323,6 +1423,16 @@
         }
       }
     },
+    "立即重新打开": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reopen now"
+          }
+        }
+      }
+    },
     "第一个番茄": {
       "localizations": {
         "en": {
@@ -1353,6 +1463,16 @@
         }
       }
     },
+    "累计 %lld/%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total %1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "累计 100 个": {
       "localizations": {
         "en": {
@@ -1369,6 +1489,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "50 total"
+          }
+        }
+      }
+    },
+    "累计收集 100 个番茄": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collect 100 tomatoes in total"
+          }
+        }
+      }
+    },
+    "累计收集 50 个番茄": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collect 50 tomatoes in total"
           }
         }
       }
@@ -1513,12 +1653,42 @@
         }
       }
     },
+    "语言": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
+          }
+        }
+      }
+    },
+    "语言设置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language setting"
+          }
+        }
+      }
+    },
     "起身喝几口水": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Get up and sip some water"
+          }
+        }
+      }
+    },
+    "跟随系统": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
           }
         }
       }
@@ -1603,12 +1773,32 @@
         }
       }
     },
+    "连续 %lld/%lld 天": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Streak %1$lld/%2$lld days"
+          }
+        }
+      }
+    },
     "连续 3 天": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "3-day streak"
+          }
+        }
+      }
+    },
+    "连续 3 天都有番茄": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collect tomatoes for 3 days in a row"
           }
         }
       }
@@ -1623,12 +1813,32 @@
         }
       }
     },
+    "连续 30 天都有番茄": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collect tomatoes for 30 days in a row"
+          }
+        }
+      }
+    },
     "连续 7 天": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "7-day streak"
+          }
+        }
+      }
+    },
+    "连续 7 天都有番茄": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collect tomatoes for 7 days in a row"
           }
         }
       }
@@ -1669,6 +1879,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "What happened"
+          }
+        }
+      }
+    },
+    "重新打开 EyeBreak 后生效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes effect after reopening EyeBreak"
           }
         }
       }

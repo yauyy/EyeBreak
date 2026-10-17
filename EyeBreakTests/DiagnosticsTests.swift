@@ -7,6 +7,7 @@ struct DiagnosticsTests {
         DiagnosticSnapshot(
             appVersion: "1.3.2", buildNumber: "2", macOSVersion: "macOS-fixture",
             chip: "Apple Silicon", isTranslated: true, interfaceLanguage: "en",
+            appearanceMode: "fixture-appearance", languageSetting: "English",
             phase: "fixture-phase", deferReason: "fixture-reason", isSnoozing: true,
             overridesSchedule: true, workSeconds: 1200, restSeconds: 20,
             enabledExercises: ["fixture-exercise"], reminderSound: "fixture-sound",
@@ -23,6 +24,7 @@ struct DiagnosticsTests {
             String(localized: "App 版本"), String(localized: "构建号"),
             String(localized: "macOS 版本"), String(localized: "芯片"),
             String(localized: "Rosetta 转译"), String(localized: "界面语言"),
+            String(localized: "外观"), String(localized: "语言设置"),
             String(localized: "当前阶段"), String(localized: "推迟原因"),
             String(localized: "稍后提醒中"), String(localized: "覆盖工作时段"),
             String(localized: "专注时长（秒）"), String(localized: "眺望时长（秒）"),
@@ -37,7 +39,7 @@ struct DiagnosticsTests {
         for label in labels {
             #expect(lines.contains { $0.hasPrefix(label + ": ") })
         }
-        for value in ["1.3.2", "macOS-fixture", "Apple Silicon", "fixture-phase", "fixture-reason", "1200", "20", "fixture-exercise", "fixture-sound", "9:00", "19:00", "fixture-login", "1970-01-01T00:00:00Z"] {
+        for value in ["1.3.2", "macOS-fixture", "Apple Silicon", "fixture-appearance", "English", "fixture-phase", "fixture-reason", "1200", "20", "fixture-exercise", "fixture-sound", "9:00", "19:00", "fixture-login", "1970-01-01T00:00:00Z"] {
             #expect(text.contains(value))
         }
     }
@@ -70,6 +72,8 @@ struct DiagnosticsTests {
         defaults.set("PRIVATE_STATS_RECORD", forKey: "tomatoCounts")
         defaults.set(["PRIVATE_ACHIEVEMENT"], forKey: "achievements")
         defaults.set("PRIVATE_PERSONAL_VALUE", forKey: "unrelatedSetting")
+        AppearancePreference.write(.dark, to: defaults)
+        LanguagePreference.write(.english, to: defaults)
         let sounds = ReminderSounds(choice: .off)
         let model = EyeBreakModel(
             workInterval: 1200, restDuration: 20, reminder: sounds,
@@ -78,7 +82,8 @@ struct DiagnosticsTests {
         )
         let captured = DiagnosticSnapshot.capture(
             model: model, sounds: sounds, launchAtLogin: LaunchAtLogin(),
-            updates: AppUpdater(), schedule: WorkScheduleSettings(defaults: defaults), defaults: defaults
+            updates: AppUpdater(), schedule: WorkScheduleSettings(defaults: defaults), defaults: defaults,
+            domainName: suite
         )
         let text = DiagnosticReport.text(from: captured)
         #expect(!text.contains("PRIVATE_"))
@@ -88,5 +93,7 @@ struct DiagnosticsTests {
         #expect(captured.enabledExercises.count == RestExercise.allCases.count)
         #expect(captured.workSeconds == 1200)
         #expect(captured.restSeconds == 20)
+        #expect(captured.appearanceMode == AppearanceMode.dark.title)
+        #expect(captured.languageSetting == "English")
     }
 }

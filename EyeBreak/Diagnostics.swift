@@ -9,6 +9,8 @@ struct DiagnosticSnapshot {
     let chip: String
     let isTranslated: Bool
     let interfaceLanguage: String
+    let appearanceMode: String
+    let languageSetting: String
     let phase: String
     let deferReason: String
     let isSnoozing: Bool
@@ -36,6 +38,8 @@ enum DiagnosticReport {
             (String(localized: "芯片"), snapshot.chip),
             (String(localized: "Rosetta 转译"), yesNo(snapshot.isTranslated)),
             (String(localized: "界面语言"), snapshot.interfaceLanguage),
+            (String(localized: "外观"), snapshot.appearanceMode),
+            (String(localized: "语言设置"), snapshot.languageSetting),
             (String(localized: "当前阶段"), snapshot.phase),
             (String(localized: "推迟原因"), snapshot.deferReason),
             (String(localized: "稍后提醒中"), yesNo(snapshot.isSnoozing)),
@@ -75,7 +79,8 @@ extension DiagnosticSnapshot {
         updates: AppUpdater,
         schedule: WorkScheduleSettings,
         defaults: UserDefaults = .standard,
-        bundle: Bundle = .main
+        bundle: Bundle = .main,
+        domainName: String? = nil
     ) -> DiagnosticSnapshot {
         let phase: String
         switch model.phase {
@@ -109,6 +114,10 @@ extension DiagnosticSnapshot {
             chip: systemFlag("hw.optional.arm64") ? "Apple Silicon" : "Intel",
             isTranslated: systemFlag("sysctl.proc_translated"),
             interfaceLanguage: bundle.preferredLocalizations.first ?? Locale.current.identifier,
+            appearanceMode: AppearancePreference.read(from: defaults).title,
+            languageSetting: LanguagePreference.read(
+                from: defaults, domainName: domainName ?? bundle.bundleIdentifier ?? "EyeBreak"
+            ).title,
             phase: phase,
             deferReason: reason,
             isSnoozing: model.isSnoozing,

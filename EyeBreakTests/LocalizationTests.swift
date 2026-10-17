@@ -16,6 +16,24 @@ struct LocalizationTests {
         ("下一轮生效", "Takes effect next round"),
         ("下次休息生效", "Takes effect next break"),
         ("EyeBreak 设置", "EyeBreak Settings"),
+        ("外观", "Appearance"),
+        ("语言", "Language"),
+        ("语言设置", "Language setting"),
+        ("跟随系统", "System"),
+        ("浅色", "Light"),
+        ("深色", "Dark"),
+        ("重新打开 EyeBreak 后生效", "Takes effect after reopening EyeBreak"),
+        ("立即重新打开", "Reopen now"),
+        ("成就", "Achievements"),
+        ("已解锁", "Unlocked"),
+        ("收集第一个番茄", "Collect your first tomato"),
+        ("一天内收集 5 个番茄", "Collect 5 tomatoes in one day"),
+        ("一天内收集 10 个番茄", "Collect 10 tomatoes in one day"),
+        ("连续 3 天都有番茄", "Collect tomatoes for 3 days in a row"),
+        ("连续 7 天都有番茄", "Collect tomatoes for 7 days in a row"),
+        ("连续 30 天都有番茄", "Collect tomatoes for 30 days in a row"),
+        ("累计收集 50 个番茄", "Collect 50 tomatoes in total"),
+        ("累计收集 100 个番茄", "Collect 100 tomatoes in total"),
         ("设置…", "Settings…"),
         ("现在休息", "Rest now"),
         ("启用的动作", "Enabled exercises"),
@@ -42,6 +60,21 @@ struct LocalizationTests {
     func englishRingAccessibility() throws {
         let format = try englishBundle().localizedString(forKey: "%@，剩余 %lld 分 %lld 秒", value: nil, table: nil)
         #expect(String(format: format, "Focusing", 18, 30) == "Focusing, 18 minutes and 30 seconds remaining")
+    }
+
+    @Test("成就进度、汇总和无障碍读法有完整英文版")
+    func englishAchievementFormats() throws {
+        let bundle = try englishBundle()
+        let today = bundle.localizedString(forKey: "今天 %lld/%lld", value: nil, table: nil)
+        #expect(String(format: today, 3, 5) == "Today 3/5")
+        let streak = bundle.localizedString(forKey: "连续 %lld/%lld 天", value: nil, table: nil)
+        #expect(String(format: streak, 2, 7) == "Streak 2/7 days")
+        let total = bundle.localizedString(forKey: "累计 %lld/%lld", value: nil, table: nil)
+        #expect(String(format: total, 37, 100) == "Total 37/100")
+        let summary = bundle.localizedString(forKey: "已解锁 %lld / %lld", value: nil, table: nil)
+        #expect(String(format: summary, 4, 8) == "Unlocked 4 / 8")
+        let locked = bundle.localizedString(forKey: "未解锁：%@，%@", value: nil, table: nil)
+        #expect(String(format: locked, "5 in a day", "Today 3/5") == "Locked: 5 in a day, Today 3/5")
     }
 
     @Test("快捷指令短语有英文版")

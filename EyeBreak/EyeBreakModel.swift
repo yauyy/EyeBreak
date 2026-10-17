@@ -383,6 +383,12 @@ final class EyeBreakModel: ObservableObject {
 
     // MARK: - 状态保存与恢复
 
+    /// 新实例等待旧实例退出时，旧实例仍可能轮换动作；恢复计时快照前读取最终序号。
+    func refreshExerciseIndexBeforeRestoring(_ index: Int) {
+        guard phase == .idle else { return }
+        exerciseIndex = index
+    }
+
     func snapshot() -> Snapshot {
         let saved: Snapshot.SavedPhase
         var remaining: TimeInterval = 0

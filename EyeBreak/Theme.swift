@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// 与番茄仔图标一致的 Q 版配色：奶油底、番茄红、叶子绿、深棕描边色。
-/// 跟随系统深浅：深色模式下是「夜间番茄」，深可可底、奶油白文字，番茄红和叶子绿稍微提亮。
+/// 跟随 App 的有效外观：深色模式下是「夜间番茄」，深可可底、奶油白文字，番茄红和叶子绿稍微提亮。
 enum Theme {
     static let tomato = dynamic(light: (0.94, 0.33, 0.27), dark: (1.00, 0.42, 0.34))
     static let tomatoDeep = dynamic(light: (0.56, 0.16, 0.13), dark: (0.52, 0.18, 0.14))
@@ -115,27 +115,6 @@ struct PillButtonStyle: ButtonStyle {
     private var base: Color { kind == .primary ? Theme.tomatoDeep : Theme.creamDeep }
 }
 
-/// 圆环倒计时：剩余比例从满环逐渐变短
-struct RingView<Content: View>: View {
-    var remaining: Double
-    var color: Color
-    var lineWidth: CGFloat = 12
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Theme.creamDeep, lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: remaining)
-                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                // 按秒更新即可；一秒长的插值会让常驻菜单和面板持续按显示器帧率重绘。
-            content
-        }
-    }
-}
-
 /// 加减步进器
 struct CuteStepper: View {
     let title: LocalizedStringKey
@@ -235,52 +214,5 @@ struct CuteToggleStyle: ToggleStyle {
             }
             .toggleStyle(.switch)
         }
-    }
-}
-
-/// 自动换行的横向排列：一行放不下时换到下一行
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = arrange(subviews, width: proposal.width ?? .infinity)
-        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
-        let width = rows.map(\.width).max() ?? 0
-        return CGSize(width: proposal.width ?? width, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var y = bounds.minY
-        for row in arrange(subviews, width: bounds.width) {
-            var x = bounds.minX
-            for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
-                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-                x += size.width + spacing
-            }
-            y += row.height + spacing
-        }
-    }
-
-    private struct Row {
-        var indices: [Int] = []
-        var width: CGFloat = 0
-        var height: CGFloat = 0
-    }
-
-    private func arrange(_ subviews: Subviews, width: CGFloat) -> [Row] {
-        var rows: [Row] = [Row()]
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
-            let needed = rows[rows.count - 1].indices.isEmpty ? size.width : rows[rows.count - 1].width + spacing + size.width
-            if needed > width, !rows[rows.count - 1].indices.isEmpty {
-                rows.append(Row())
-            }
-            let last = rows.count - 1
-            rows[last].width = rows[last].indices.isEmpty ? size.width : rows[last].width + spacing + size.width
-            rows[last].height = max(rows[last].height, size.height)
-            rows[last].indices.append(index)
-        }
-        return rows
     }
 }

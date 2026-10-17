@@ -21,8 +21,10 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
     case menuSnooze = "menu-snooze-pending-hints"
     case menuWorst = "menu-worst-update"
     case settingsGeneral = "settings-general"
+    case settingsLanguagePending = "settings-language-pending"
     case settingsRest = "settings-rest"
     case settingsSchedule = "settings-schedule"
+    case settingsAchievements = "settings-achievements"
     case settingsAbout = "settings-about"
     case settingsScheduleEnabled = "settings-schedule-enabled"
     case panelAwaiting = "panel-awaiting"
@@ -34,7 +36,8 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
     var width: CGFloat {
         switch self {
         case .menuCollapsed, .menuWeek, .menuDeferred, .menuSnooze, .menuWorst: 280
-        case .settingsGeneral, .settingsRest, .settingsSchedule, .settingsAbout, .settingsScheduleEnabled: 520
+        case .settingsGeneral, .settingsLanguagePending, .settingsRest, .settingsSchedule,
+             .settingsAchievements, .settingsAbout, .settingsScheduleEnabled: 560
         case .panelAwaiting, .panelAwaitingDrinkWater, .panelResting, .panelCelebrating: 300
         case .onboarding: 460
         }
@@ -42,7 +45,8 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
 
     var fixedHeight: CGFloat? {
         switch self {
-        case .settingsGeneral, .settingsRest, .settingsSchedule, .settingsAbout, .settingsScheduleEnabled: 480
+        case .settingsGeneral, .settingsLanguagePending, .settingsRest, .settingsSchedule,
+             .settingsAchievements, .settingsAbout, .settingsScheduleEnabled: 480
         case .panelAwaiting, .panelAwaitingDrinkWater, .panelResting, .panelCelebrating: 264
         default: nil
         }
@@ -73,6 +77,8 @@ private final class SnapshotFixture {
     let stats: TomatoStats
     let updates = AppUpdater()
     let schedule: WorkScheduleSettings
+    let appearance: AppearanceSettings
+    let language: LanguageSettings
     let launchAtLogin = LaunchAtLogin(refreshesSystemStatus: false)
     let sounds = ReminderSounds(choice: .glass)
     let panelState = BreakPanelController.State()
@@ -82,6 +88,17 @@ private final class SnapshotFixture {
         let suite = "EyeBreak.SnapshotTests.\(UUID().uuidString)"
         suiteName = suite
         defaults = try #require(UserDefaults(suiteName: suite))
+        appearance = AppearanceSettings(defaults: defaults, appliesToApplication: false)
+        language = LanguageSettings(
+            defaults: defaults, domainName: suite, runningLanguage: SnapshotEnvironment.language,
+            systemLanguages: { [SnapshotEnvironment.language] }
+        )
+        if scene == .settingsLanguagePending {
+            language.choice = SnapshotEnvironment.language == "en" ? .simplifiedChinese : .english
+            #expect(language.restartRequired)
+        } else {
+            #expect(!language.restartRequired)
+        }
         let initialDate = Date(timeIntervalSince1970: 1_791_799_200) // 2026-10-12 10:00 UTC
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
@@ -91,7 +108,7 @@ private final class SnapshotFixture {
             "2026-10-09": 5, "2026-10-10": 3, "2026-10-11": 2, "2026-10-12": 8
         ], forKey: "tomatoCounts")
         defaults.set(72, forKey: "tomatoTotal")
-        defaults.set([Achievement.firstTomato, .dailyFive, .streakThree, .totalFifty].map(\.rawValue), forKey: "achievements")
+        defaults.set([Achievement.firstTomato, .dailyFive, .streakThree, .streakSeven, .totalFifty].map(\.rawValue), forKey: "achievements")
         defaults.set(false, forKey: EyeBreakConfig.showMenuBarTimeKey)
         stats = TomatoStats(defaults: defaults, now: { initialDate }, calendar: calendar)
         schedule = WorkScheduleSettings(defaults: defaults)
@@ -159,16 +176,19 @@ private final class SnapshotFixture {
                 openSettings: { _ in },
                 showsAllPendingHintsForTesting: scene == .menuSnooze || scene == .menuWorst
             ))
-        case .settingsGeneral, .settingsRest, .settingsSchedule, .settingsAbout, .settingsScheduleEnabled:
+        case .settingsGeneral, .settingsLanguagePending, .settingsRest, .settingsSchedule,
+             .settingsAchievements, .settingsAbout, .settingsScheduleEnabled:
             switch scene {
             case .settingsRest: presentation.section = .rest
             case .settingsSchedule, .settingsScheduleEnabled: presentation.section = .schedule
+            case .settingsAchievements: presentation.section = .achievements
             case .settingsAbout: presentation.section = .about
             default: presentation.section = .general
             }
             return AnyView(SettingsContentView(
                 model: model, launchAtLogin: launchAtLogin, stats: stats, sounds: sounds,
-                updates: updates, schedule: schedule, presentation: presentation, onReplayOnboarding: {}
+                updates: updates, schedule: schedule, appearance: appearance, language: language,
+                presentation: presentation, onReplayOnboarding: {}
             ))
         case .panelAwaiting, .panelAwaitingDrinkWater, .panelResting, .panelCelebrating:
             return AnyView(BreakPanelView(
@@ -189,7 +209,82 @@ private final class SnapshotClock {
 
 @MainActor
 struct SnapshotTests {
-    @Test("520 × 480 休息页的五个开关及单动作提示完整显示，无需滚动", arguments: [false, true], SnapshotAppearance.allCases)
+    @Test("五个设置标签的中英文完整文字在 560 点窗口内有足够空间", arguments: ["zh-Hans", "en"])
+    private func settingsTabsHaveRoom(language: String) throws {
+        let titles: [String]
+        if language == "en" {
+            let path = try #require(Bundle.main.path(forResource: "en", ofType: "lproj"))
+            let bundle = try #require(Bundle(path: path))
+            titles = ["通用", "休息", "工作时段", "成就", "关于"].map {
+                bundle.localizedString(forKey: $0, value: nil, table: nil)
+            }
+        } else {
+            titles = ["通用", "休息", "工作时段", "成就", "关于"]
+        }
+        #expect(SettingsSection.allCases.count == 5)
+        // 按产品使用的圆体字号测量完整标签，预留每项左右 8 点、外框和标签间距。
+        let textWidths = titles.map { title in
+            let label = NSHostingView(rootView: Text(verbatim: title)
+                .font(Theme.font(13, .semibold))
+                .fixedSize(horizontal: true, vertical: false))
+            return ceil(label.fittingSize.width)
+        }
+        let requiredWidth = textWidths.reduce(0, +) + CGFloat(titles.count) * 16
+            + CGFloat(titles.count - 1) * Theme.Spacing.segmented + Theme.Spacing.segmented * 2
+        let availableWidth: CGFloat = 560 - 18 * 2
+        #expect(requiredWidth <= availableWidth)
+        print("Settings 标签 \(language)：完整文字与内边距共 \(requiredWidth) pt，可用 \(availableWidth) pt")
+    }
+
+    @Test("通用、语言待生效和成就页保持固定窗口并在内部滚动", arguments: [
+        SnapshotScene.settingsGeneral, .settingsLanguagePending, .settingsAchievements
+    ], SnapshotAppearance.allCases)
+    private func enhancedSettingsKeepFixedWindow(scene: SnapshotScene, appearance: SnapshotAppearance) async throws {
+        let fixture = try SnapshotFixture(scene: scene)
+        defer { fixture.cleanUp() }
+        let content = fixture.content(for: scene)
+            .environment(\.ringSnapshotRendering, true)
+            .defaultAppStorage(fixture.defaults)
+            .environment(\.locale, Locale(identifier: SnapshotEnvironment.language))
+            .environment(\.colorScheme, appearance.colorScheme)
+            .transaction { $0.disablesAnimations = true }
+        let host = NSHostingView(rootView: content)
+        host.appearance = NSAppearance(named: appearance.name)
+        host.frame = NSRect(x: 0, y: 0, width: 560, height: 480)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = host.appearance
+        window.contentView = host
+        defer { window.close() }
+        // 传统滚动条（「始终显示滚动条」）出现后，内容要再排一次版才会收窄到可见宽度；等尺寸稳定再测量。
+        var lastWidth: CGFloat = -1
+        for _ in 0..<10 {
+            host.layoutSubtreeIfNeeded()
+            await Task.yield()
+            host.layoutSubtreeIfNeeded()
+            let width = firstScrollView(in: host)?.documentView?.bounds.width ?? 0
+            if width == lastWidth { break }
+            lastWidth = width
+        }
+
+        let scrollView = try #require(firstScrollView(in: host))
+        let document = try #require(scrollView.documentView)
+        let visibleSize = scrollView.contentView.bounds.size
+        #expect(host.bounds.size == NSSize(width: 560, height: 480))
+        #expect(document.bounds.width <= visibleSize.width + 1)
+        #expect(document.bounds.height > 0)
+        if scene == .settingsAchievements {
+            #expect(document.bounds.height > visibleSize.height)
+            // 滚到内容末端，确认最后一排成就可达，同时窗口保持固定尺寸。
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: document.bounds.maxY - visibleSize.height))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            #expect(scrollView.contentView.bounds.maxY >= document.bounds.maxY - 1)
+            #expect(host.bounds.size == NSSize(width: 560, height: 480))
+        }
+        #expect(fixture.language.restartRequired == (scene == .settingsLanguagePending))
+    }
+
+    @Test("560 × 480 休息页的五个开关及单动作提示完整显示，无需滚动", arguments: [false, true], SnapshotAppearance.allCases)
     private func restSettingsFitWindow(onlyDrinkWater: Bool, appearance: SnapshotAppearance) async throws {
         let fixture = try SnapshotFixture(scene: .settingsRest)
         defer { fixture.cleanUp() }
@@ -206,7 +301,7 @@ struct SnapshotTests {
             .transaction { $0.disablesAnimations = true }
         let host = NSHostingView(rootView: content)
         host.appearance = NSAppearance(named: appearance.name)
-        host.frame = NSRect(x: 0, y: 0, width: 520, height: 480)
+        host.frame = NSRect(x: 0, y: 0, width: 560, height: 480)
         let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = host.appearance
@@ -223,7 +318,7 @@ struct SnapshotTests {
         #expect(document.bounds.height > 200)
         #expect(document.bounds.height <= visibleSize.height + 1)
         #expect(document.bounds.width <= visibleSize.width + 1)
-        #expect(host.bounds.size == NSSize(width: 520, height: 480))
+        #expect(host.bounds.size == NSSize(width: 560, height: 480))
         print("Settings 休息页 \(SnapshotEnvironment.language) \(appearance.rawValue)，仅喝水=\(onlyDrinkWater)：内容 \(document.bounds.size)，可见 \(visibleSize)")
     }
 
@@ -237,6 +332,7 @@ struct SnapshotTests {
         let fixture = try SnapshotFixture(scene: scene)
         defer { fixture.cleanUp() }
         let content = fixture.content(for: scene)
+            .environment(\.ringSnapshotRendering, true)
             .defaultAppStorage(fixture.defaults)
             .environment(\.locale, Locale(identifier: SnapshotEnvironment.language))
             .environment(\.colorScheme, appearance.colorScheme)

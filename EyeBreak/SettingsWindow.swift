@@ -7,6 +7,7 @@ enum SettingsSection: CaseIterable, Hashable {
     case general
     case rest
     case schedule
+    case achievements
     case about
 
     var title: String {
@@ -14,6 +15,7 @@ enum SettingsSection: CaseIterable, Hashable {
         case .general: return String(localized: "通用")
         case .rest: return String(localized: "休息")
         case .schedule: return String(localized: "工作时段")
+        case .achievements: return String(localized: "成就")
         case .about: return String(localized: "关于")
         }
     }
@@ -23,8 +25,6 @@ enum SettingsSection: CaseIterable, Hashable {
 final class SettingsPresentation: ObservableObject {
     @Published var section: SettingsSection = .general
     @Published var diagnosticText: String?
-    @Published var achievementRequest = 0
-    var focusAchievements = false
 }
 
 /// 在窗口层处理关闭快捷键，不依赖 LSUIElement 应用不可见的主菜单。
@@ -69,12 +69,14 @@ final class SettingsWindowController: NSWindowController {
         sounds: ReminderSounds,
         updates: AppUpdater,
         schedule: WorkScheduleSettings,
+        appearance: AppearanceSettings,
+        language: LanguageSettings,
         onReplayOnboarding: @escaping () -> Void
     ) {
         self.launchAtLogin = launchAtLogin
         self.stats = stats
         let window = SettingsWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 480),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -89,10 +91,12 @@ final class SettingsWindowController: NSWindowController {
             sounds: sounds,
             updates: updates,
             schedule: schedule,
+            appearance: appearance,
+            language: language,
             presentation: presentation,
             onReplayOnboarding: onReplayOnboarding
         ))
-        window.setContentSize(NSSize(width: 520, height: 480))
+        window.setContentSize(NSSize(width: 560, height: 480))
         window.onEscape = { [weak self] in
             guard let self else { return }
             if self.presentation.diagnosticText != nil {
@@ -105,12 +109,10 @@ final class SettingsWindowController: NSWindowController {
 
     required init?(coder: NSCoder) { nil }
 
-    func show(section: SettingsSection? = nil, focusAchievements: Bool = false) {
+    func show(section: SettingsSection? = nil) {
         guard let window else { return }
         presentation.diagnosticText = nil
-        presentation.focusAchievements = focusAchievements
         if let section { presentation.section = section }
-        if focusAchievements { presentation.achievementRequest += 1 }
         launchAtLogin.refresh()
         stats.refresh()
         NSApp.activate(ignoringOtherApps: true)
@@ -130,12 +132,13 @@ struct SettingsContentView: View {
     @ObservedObject var sounds: ReminderSounds
     @ObservedObject var updates: AppUpdater
     @ObservedObject var schedule: WorkScheduleSettings
+    @ObservedObject var appearance: AppearanceSettings
+    @ObservedObject var language: LanguageSettings
     @ObservedObject var presentation: SettingsPresentation
     let onReplayOnboarding: () -> Void
 
     @AppStorage(EyeBreakConfig.showMenuBarTimeKey) private var showMenuBarTime = false
     private let topAnchor = "settingsTop"
-    private let achievementAnchor = "achievements"
 
     var body: some View {
         ZStack {
@@ -144,24 +147,19 @@ struct SettingsContentView: View {
                     .padding(.horizontal, 18)
                     .padding(.top, 18)
                     .padding(.bottom, 14)
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        // 直接以分区内容作为顶部锚点，避免零高度视图仍产生额外间距。
-                        sectionContent
-                            .id(topAnchor)
-                            .padding(.horizontal, 22)
-                            .padding(.bottom, 22)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .onChange(of: presentation.section) { _ in
-                        proxy.scrollTo(topAnchor, anchor: .top)
-                    }
-                    .task(id: presentation.achievementRequest) {
-                        guard presentation.focusAchievements, presentation.section == .about else { return }
-                        // 等待关于分区插入并注册锚点；重复打开成就入口也会发出新请求。
-                        await Task.yield()
-                        guard !Task.isCancelled else { return }
-                        proxy.scrollTo(achievementAnchor, anchor: .top)
+                GeometryReader { viewport in
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            // 传统滚动条会占用裁剪区宽度，网格必须按实际可见宽度排两列。
+                            sectionContent
+                                .id(topAnchor)
+                                .frame(width: max(0, viewport.size.width - reservedScrollerWidth - 44), alignment: .leading)
+                                .padding(.horizontal, 22)
+                                .padding(.bottom, 22)
+                        }
+                        .onChange(of: presentation.section) { _ in
+                            proxy.scrollTo(topAnchor, anchor: .top)
+                        }
                     }
                 }
             }
@@ -171,8 +169,13 @@ struct SettingsContentView: View {
                 diagnosticPreview(text)
             }
         }
-        .frame(width: 520, height: 480)
+        .frame(width: 560, height: 480)
         .background(Theme.cream)
+    }
+
+    private var reservedScrollerWidth: CGFloat {
+        guard NSScroller.preferredScrollerStyle == .legacy else { return 0 }
+        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     }
 
     private var sectionTabs: some View {
@@ -180,11 +183,13 @@ struct SettingsContentView: View {
             ForEach(SettingsSection.allCases, id: \.self) { section in
                 let selected = section == presentation.section
                 Button {
-                    presentation.focusAchievements = false
                     presentation.section = section
                 } label: {
                     Text(verbatim: section.title)
                         .font(Theme.font(13, .semibold))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 8)
                         .foregroundStyle(selected ? .white : Theme.ink)
                         .frame(maxWidth: .infinity)
                         .frame(height: Theme.controlHeight)
@@ -209,12 +214,48 @@ struct SettingsContentView: View {
         case .general: generalSettings
         case .rest: restSettings
         case .schedule: scheduleSettings
+        case .achievements: AchievementsView(stats: stats)
         case .about: aboutSettings
         }
     }
 
     private var generalSettings: some View {
         VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 8) {
+                settingTitle("外观")
+                TomatoSegmentedPicker(
+                    options: AppearanceMode.allCases, selection: appearance.mode,
+                    title: { $0.title }, onSelect: { appearance.mode = $0 }
+                )
+                .accessibilityLabel("外观")
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                settingTitle("语言")
+                TomatoSegmentedPicker(
+                    options: LanguageChoice.allCases, selection: language.choice,
+                    title: { $0.title }, onSelect: { language.choice = $0 }
+                )
+                .accessibilityLabel("语言")
+                .disabled(language.isReopening)
+                if language.restartRequired {
+                    HStack(spacing: 12) {
+                        Text("重新打开 EyeBreak 后生效")
+                            .font(Theme.font(12))
+                            .foregroundStyle(Theme.inkSoft)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        Button("立即重新打开", action: language.reopen)
+                            .buttonStyle(PillButtonStyle(kind: .plain))
+                            .disabled(language.isReopening)
+                    }
+                }
+                if let error = language.reopenError {
+                    Text(verbatim: error)
+                        .font(Theme.font(12))
+                        .foregroundStyle(Theme.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             VStack(alignment: .leading, spacing: 8) {
                 settingTitle("提示音")
                 SoundPicker(selection: sounds.choice) { sound in
@@ -317,30 +358,6 @@ struct SettingsContentView: View {
                 }
             }
             .buttonStyle(PillButtonStyle(kind: .secondary))
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    settingTitle("成就墙")
-                    Spacer()
-                    Text(verbatim: "\(stats.unlocked.count)/\(Achievement.allCases.count)")
-                        .font(Theme.font(12, .semibold))
-                        .foregroundStyle(Theme.inkSoft)
-                }
-                FlowLayout(spacing: 8) {
-                    ForEach(Achievement.allCases) { achievement in
-                        let earned = stats.unlocked.contains(achievement)
-                        Text(verbatim: achievement.title)
-                            .font(Theme.font(12, .semibold))
-                            .foregroundStyle(earned ? .white : Theme.inkSoft)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(earned ? Theme.tomatoFill : Theme.ink.opacity(0.07)))
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(earned ? Text("已解锁：\(achievement.title)") : Text("未解锁：\(achievement.title)"))
-                    }
-                }
-            }
-            .settingsCard()
-            .id(achievementAnchor)
         }
     }
 

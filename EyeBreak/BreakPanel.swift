@@ -321,7 +321,10 @@ private struct RestCountdownRing: View {
     @ObservedObject var model: EyeBreakModel
 
     var body: some View {
-        RingView(remaining: 1 - model.progress, color: Theme.leaf, lineWidth: 10) { Color.clear }
+        RingView(
+            remaining: 1 - model.progress, color: Theme.leaf, lineWidth: 10,
+            phase: model.phase, duration: model.currentBreakDuration
+        ) { Color.clear }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("休息中，剩余 \(model.remainingSeconds) 秒"))
     }
@@ -403,6 +406,8 @@ private struct CelebrationContent: View {
 
 /// 与图标呼应的白色波点底纹
 private struct PolkaDots: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         Canvas { context, size in
             let spacing: CGFloat = 26
@@ -418,6 +423,8 @@ private struct PolkaDots: View {
                 row += 1
             }
         }
+        // 静止 Canvas 会复用绘制结果，外观变化时单独重建底纹，不重启角色动作或倒计时。
+        .id(colorScheme)
         .background(LinearGradient(colors: [Theme.cream, Theme.creamDeep], startPoint: .top, endPoint: .bottom))
     }
 }

@@ -7,7 +7,7 @@ struct EyeBreakApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: _appDelegate.projectedValue.isMenuBarInserted) {
             MenuContentView(
                 model: appDelegate.model, launchAtLogin: appDelegate.launchAtLogin,
                 stats: appDelegate.stats, sounds: appDelegate.sounds,
@@ -25,7 +25,10 @@ struct EyeBreakApp: App {
 /// 计时模型、提示音和休息面板由 AppDelegate 持有，生命周期等同于进程，
 /// 与菜单面板是否打开无关——关闭面板不会停止计时。
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+    @Published var isMenuBarInserted = false
+    let appearance: AppearanceSettings
+    let language: LanguageSettings
     let model: EyeBreakModel
     let sounds: ReminderSounds
     let schedule: WorkScheduleSettings
@@ -38,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboardingWindow: OnboardingWindowController?
     private var shortcutMonitor: Any?
     private var breakPanel: BreakPanelController?
+    private var startupTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
 
     override init() {
@@ -45,6 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let defaults = UserDefaults.standard
         let domain = Bundle.main.bundleIdentifier.flatMap { defaults.persistentDomain(forName: $0) } ?? [:]
         shouldShowOnboarding = OnboardingPolicy.shouldPresent(persistentDomain: domain)
+        appearance = AppearanceSettings(defaults: defaults)
+        language = LanguageSettings(defaults: defaults)
         if !shouldShowOnboarding, !EyeBreakConfig.isRunningTests {
             defaults.set(true, forKey: OnboardingPolicy.seenKey)
         }
@@ -72,11 +78,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.sounds = sounds
         self.schedule = schedule
         super.init()
+        language.beforeReopen = { [weak model] in
+            guard let model else { return }
+            EyeBreakConfig.saveSnapshot(model.snapshot())
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 单元测试以本 App 为宿主运行，不要在测试中弹出面板
         guard !EyeBreakConfig.isRunningTests else { return }
+        if let previousPID = RelaunchHandoff.previousProcessID(
+            in: ProcessInfo.processInfo.arguments,
+            currentProcessID: ProcessInfo.processInfo.processIdentifier
+        ) {
+            // 先完成 App 启动，旧实例才能收到 NSWorkspace 的成功回调并退出。
+            // 退出之前不插入 MenuBarExtra，也不恢复快照或启动 Sparkle。
+            startupTask = Task { [weak self] in
+                let exited = await RelaunchHandoff.waitForExit(processID: previousPID) { pid in
+                    guard let previous = NSRunningApplication(processIdentifier: pid), !previous.isTerminated else { return false }
+                    return previous.bundleURL?.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL
+                }
+                guard !Task.isCancelled, let self else { return }
+                guard exited else {
+                    // 旧进程未正常退出时撤销接管；新实例始终不会留下第二个菜单栏图标。
+                    NSApp.terminate(nil)
+                    return
+                }
+                RelaunchHandoff.synchronizePreferences()
+                self.stats.reloadFromDefaults()
+                self.model.refreshExerciseIndexBeforeRestoring(EyeBreakConfig.exerciseIndex)
+                self.finishLaunching()
+            }
+        } else {
+            finishLaunching()
+        }
+    }
+
+    private func finishLaunching() {
         // 先记账再创建面板：两者都订阅 breakCompleted，按订阅顺序收到，庆祝画面才能显示最新数量
         model.breakCompleted
             .sink { [stats] in MainActor.assumeIsolated { stats.recordBreak() } }
@@ -93,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // 先恢复再开始保存，避免启动时的初始状态覆盖掉上次的快照
         model.onSnapshot = { EyeBreakConfig.saveSnapshot($0) }
+        isMenuBarInserted = true
         updates.start()
         installShortcuts()
         if shouldShowOnboarding { showOnboarding() }
@@ -114,8 +153,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        startupTask?.cancel()
         if let shortcutMonitor { NSEvent.removeMonitor(shortcutMonitor) }
         model.shutdown()
+        if language.isReopening {
+            // shutdown 的最后一份快照可能晚于启动新进程，再同步一次供其接管。
+            RelaunchHandoff.synchronizePreferences()
+        }
     }
 
     func openSettings(achievements: Bool = false) {
@@ -124,10 +168,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWindow = SettingsWindowController(
                 model: model, launchAtLogin: launchAtLogin, stats: stats,
                 sounds: sounds, updates: updates, schedule: schedule,
+                appearance: appearance, language: language,
                 onReplayOnboarding: { [weak self] in self?.showOnboarding() }
             )
         }
-        settingsWindow?.show(section: achievements ? .about : nil, focusAchievements: achievements)
+        settingsWindow?.show(section: achievements ? .achievements : nil)
     }
 
     private func showOnboarding() {
