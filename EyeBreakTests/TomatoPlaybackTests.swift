@@ -3,7 +3,7 @@ import Testing
 
 struct TomatoPlaybackTests {
     @Test("每个动作的完整周期与绘制公式一致", arguments: [
-        (TomatoCharacter.Motion.still, 0.0), (.lookFar, 4), (.blink, 6.4), (.closeEyes, 4), (.rollEyes, 3)
+        (TomatoCharacter.Motion.still, 0.0), (.lookFar, 4), (.blink, 6.4), (.closeEyes, 4), (.rollEyes, 3), (.drinkWater, 4)
     ])
     func completeCycles(motion: TomatoCharacter.Motion, expected: Double) {
         #expect(TomatoPlayback.cycleDuration(for: motion) == expected)
@@ -25,7 +25,7 @@ struct TomatoPlaybackTests {
     }
 
     @Test("减少动态效果从第零秒起固定代表帧且结束", arguments: [
-        (TomatoCharacter.Motion.still, 0.0), (.lookFar, 1.8), (.blink, 0.78), (.closeEyes, 0), (.rollEyes, 1.5)
+        (TomatoCharacter.Motion.still, 0.0), (.lookFar, 1.8), (.blink, 0.78), (.closeEyes, 0), (.rollEyes, 1.5), (.drinkWater, 1.4)
     ])
     func reducedMotion(motion: TomatoCharacter.Motion, representative: Double) {
         for elapsed in [0.0, 1, 100] {

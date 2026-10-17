@@ -2,10 +2,11 @@ import Foundation
 
 /// 休息时轮换的护眼小动作
 enum RestExercise: Int, CaseIterable, Sendable {
-    case lookFar
-    case blink
-    case closeEyes
-    case rollEyes
+    case lookFar = 0
+    case blink = 1
+    case closeEyes = 2
+    case rollEyes = 3
+    case drinkWater = 4
 
     static func at(_ index: Int) -> RestExercise {
         allCases[((index % allCases.count) + allCases.count) % allCases.count]
@@ -23,6 +24,7 @@ enum RestExercise: Int, CaseIterable, Sendable {
         case .blink: return String(localized: "眨眨眼")
         case .closeEyes: return String(localized: "闭眼放松")
         case .rollEyes: return String(localized: "转转眼球")
+        case .drinkWater: return String(localized: "喝口水")
         }
     }
 
@@ -33,6 +35,7 @@ enum RestExercise: Int, CaseIterable, Sendable {
         case .blink: return String(localized: "慢慢眨眨眼")
         case .closeEyes: return String(localized: "轻轻闭上眼睛")
         case .rollEyes: return String(localized: "眼球慢慢画圈")
+        case .drinkWater: return String(localized: "起身喝几口水")
         }
     }
 }

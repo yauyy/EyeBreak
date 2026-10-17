@@ -54,8 +54,9 @@ enum EyeBreakConfig {
     private static let exerciseIndexKey = "exerciseIndex"
     private static let reminderSoundKey = "reminderSound"
     private static let enabledExercisesKey = "enabledExercises"
+    private static let disabledExercisesKey = "disabledExercises"
 
-    /// 启用的护眼动作，首次使用默认全部开启。
+    /// 持久化关闭的动作，让首次使用和升级后新增的动作默认开启。
     static var enabledExercises: Set<RestExercise> {
         get { loadEnabledExercises(from: .standard) }
         set { saveEnabledExercises(newValue, to: .standard) }
@@ -63,15 +64,26 @@ enum EyeBreakConfig {
 
     /// 独立偏好域便于测试，未知动作忽略，全关时回退为「看看远处」。
     static func loadEnabledExercises(from defaults: UserDefaults) -> Set<RestExercise> {
-        guard let saved = defaults.array(forKey: enabledExercisesKey) as? [Int] else {
-            return Set(RestExercise.allCases)
+        let allExercises = Set(RestExercise.allCases)
+        let disabled: Set<RestExercise>
+        if defaults.object(forKey: disabledExercisesKey) != nil {
+            let saved = defaults.array(forKey: disabledExercisesKey) as? [Int] ?? []
+            disabled = Set(saved.compactMap(RestExercise.init(rawValue:)))
+        } else if let saved = defaults.array(forKey: enabledExercisesKey) as? [Int] {
+            // 1.4 只有前四项；固定迁移范围，新增动作不算作用户曾关闭的动作。
+            let legacyExercises: Set<RestExercise> = [.lookFar, .blink, .closeEyes, .rollEyes]
+            disabled = legacyExercises.subtracting(saved.compactMap(RestExercise.init(rawValue:)))
+            // 保留旧键，回退旧版本时仍能读取原来的选择。
+            defaults.set(disabled.map(\.rawValue).sorted(), forKey: disabledExercisesKey)
+        } else {
+            disabled = []
         }
-        return RestExercise.normalized(Set(saved.compactMap(RestExercise.init(rawValue:))))
+        return RestExercise.normalized(allExercises.subtracting(disabled))
     }
 
     static func saveEnabledExercises(_ exercises: Set<RestExercise>, to defaults: UserDefaults) {
-        let values = RestExercise.normalized(exercises).map(\.rawValue).sorted()
-        defaults.set(values, forKey: enabledExercisesKey)
+        let disabled = Set(RestExercise.allCases).subtracting(RestExercise.normalized(exercises))
+        defaults.set(disabled.map(\.rawValue).sorted(), forKey: disabledExercisesKey)
     }
 
     /// 提醒音选择，默认「清脆」（Glass）

@@ -4,13 +4,13 @@
   // 与 TomatoCharacter.swift 使用同一套 100×100 坐标、配色和时间公式。
   const INK = '#4A3428';
   const TAU = Math.PI * 2;
-  const representativeTime = { still: 0, lookFar: 1.8, blink: 0.78, closeEyes: 0, rollEyes: 1.5 };
+  const representativeTime = { still: 0, lookFar: 1.8, blink: 0.78, closeEyes: 0, rollEyes: 1.5, drinkWater: 1.4 };
   const phase = (t, duration) => ((t % duration) + duration) % duration;
   const ease = value => (1 - Math.cos(Math.PI * Math.max(0, Math.min(1, value)))) / 2;
   const circleAngle = t => -Math.PI / 2 + TAU * ease(phase(t, 3) / 3);
 
   function frame(motion, t) {
-    const state = { lookX: 0, lookY: 0, closure: 0, gaze: 0, breath: 0, angle: 0 };
+    const state = { lookX: 0, lookY: 0, closure: 0, gaze: 0, breath: 0, angle: 0, lift: 0, sip: 0, cupX: 0, cupY: 0, cupRotation: 0, handX: 0, handY: 0 };
     if (motion === 'lookFar') {
       const p = phase(t, 4);
       state.gaze = p < 1.2 ? ease(p / 1.2) : p < 2.3 ? 1 : p < 3.5 ? 1 - ease((p - 2.3) / 1.2) : 0;
@@ -30,6 +30,19 @@
       state.angle = circleAngle(t);
       state.lookX = 3 * Math.cos(state.angle);
       state.lookY = 3 * Math.sin(state.angle);
+    } else if (motion === 'drinkWater') {
+      // 四秒一轮：抬杯、两次轻啜、放下、停顿；各段接点的位置和速度连续。
+      const p = phase(t, 4);
+      state.lift = p < 1 ? ease(p) : p < 2.6 ? 1 : p < 3.6 ? 1 - ease(p - 2.6) : 0;
+      state.sip = p >= 1 && p < 2.6 ? Math.sin(TAU * (p - 1) / 1.6) ** 2 : 0;
+      state.closure = ease((state.lift - 0.55) / 0.45);
+      // 以杯身中心定位；杯口向左上靠嘴，圆手贴住杯身右侧中下部。
+      state.cupX = 68.5 - 13.7 * state.lift;
+      state.cupY = 80 - 2.3 * state.lift - 0.35 * state.sip;
+      state.cupRotation = -22 * state.lift - 4 * state.sip;
+      const angle = state.cupRotation * Math.PI / 180;
+      state.handX = state.cupX + 9.7 * Math.cos(angle) - 2 * Math.sin(angle);
+      state.handY = state.cupY + 9.7 * Math.sin(angle) + 2 * Math.cos(angle);
     }
     return state;
   }
@@ -88,16 +101,16 @@
     stroke(ctx, c => { c.moveTo(x - 5.4, y); c.quadraticCurveTo(x, y + 5.6, x + 5.4, y); }, 2.2);
   }
 
-  function openEye(ctx, x, y, closure) {
+  function openEye(ctx, x, y, closure, closedDepth = 3) {
     ctx.save();
     // 眼珠保持原尺寸，用上下眼皮围成的开口裁切，上眼皮真实落下。
     const top = y - 6.9 * (1 - closure);
     const bottom = y + 6.9 * (1 - closure);
     ctx.beginPath();
     ctx.moveTo(x - 5.9, top);
-    ctx.quadraticCurveTo(x, top + 3 * closure, x + 5.9, top);
+    ctx.quadraticCurveTo(x, top + closedDepth * closure, x + 5.9, top);
     ctx.lineTo(x + 5.9, bottom);
-    ctx.quadraticCurveTo(x, bottom + 3 * closure, x - 5.9, bottom);
+    ctx.quadraticCurveTo(x, bottom + closedDepth * closure, x - 5.9, bottom);
     ctx.closePath(); ctx.clip();
     ellipse(ctx, x, y, 5.6, 6.9, '#3B2A22');
     ctx.save();
@@ -108,14 +121,15 @@
     ellipse(ctx, x + 2.016, y + 2.208, 0.952, 0.952, '#FFFFFF');
     ctx.restore();
     if (closure > 0) {
-      stroke(ctx, c => { c.moveTo(x - 5.4, top); c.quadraticCurveTo(x, top + 3 * closure, x + 5.4, top); }, 2.2, `rgba(74,52,40,${closure})`);
+      stroke(ctx, c => { c.moveTo(x - 5.4, top); c.quadraticCurveTo(x, top + closedDepth * closure, x + 5.4, top); }, 2.2, `rgba(74,52,40,${closure})`);
     }
   }
 
   function drawFace(ctx, motion, state) {
     for (const x of [37, 63]) {
       if (motion === 'closeEyes') closedEye(ctx, x, 60);
-      else openEye(ctx, x + state.lookX, 60 + state.lookY, state.closure);
+      // 喝水时连续落下眼皮，最终与 closedEye 的 5.6 深度弧线完全一致。
+      else openEye(ctx, x + state.lookX, 60 + state.lookY, state.closure, motion === 'drinkWater' ? 5.6 : 3);
     }
     for (const x of [28, 72]) ellipse(ctx, x, 69.7, 5.8, 3.2, 'rgba(255,110,140,.42)');
     stroke(ctx, c => {
@@ -131,17 +145,45 @@
     stroke(ctx, arm, 7, '#F0453A');
   }
 
-  function drawHand(ctx, x, y, rotation) {
+  function drawHand(ctx, x, y, rotation, scale = 1) {
     // 手掌宽高比 1.15，高光和底部暖色随手掌旋转。
     ctx.save();
-    ctx.translate(x, y); ctx.rotate(rotation * Math.PI / 180);
+    ctx.translate(x, y); ctx.rotate(rotation * Math.PI / 180); ctx.scale(scale, scale);
     ellipse(ctx, 0, 0, 8.05, 7, '#FFFDF8');
     ctx.save();
     ctx.beginPath(); ctx.ellipse(0, 0, 8.05, 7, 0, 0, TAU); ctx.clip();
     ellipse(ctx, 0, 4.1, 7, 2.6, '#F4EBDD');
     ellipse(ctx, -2.6, -3, 2.8, 1.6, '#FFFFFF', -32 * Math.PI / 180);
     ctx.restore();
-    stroke(ctx, c => c.ellipse(0, 0, 8.05, 7, 0, 0, TAU), 2.2);
+    stroke(ctx, c => c.ellipse(0, 0, 8.05, 7, 0, 0, TAU), 2.2 / scale);
+    ctx.restore();
+  }
+
+  function drawCup(ctx, state) {
+    ctx.save();
+    ctx.translate(state.cupX, state.cupY);
+    ctx.rotate(state.cupRotation * Math.PI / 180);
+    // 杯身中心为原点，宽 15、高 18.4；比上一轮约大 15%，描边仍为 2.2。
+    const body = c => {
+      c.moveTo(-7.5, -9.2); c.quadraticCurveTo(0, -11.5, 7.5, -9.2);
+      c.lineTo(6.35, 6.1); c.quadraticCurveTo(6.1, 9.2, 3.2, 9.2);
+      c.lineTo(-3.2, 9.2); c.quadraticCurveTo(-6.1, 9.2, -6.35, 6.1);
+      c.closePath();
+    };
+    ctx.beginPath(); body(ctx); ctx.fillStyle = '#FFFDF8'; ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-6.1, -8.6); ctx.quadraticCurveTo(0, -10, 6.1, -8.6);
+    ctx.lineTo(5, 5.9); ctx.quadraticCurveTo(4.8, 7.7, 3, 7.7);
+    ctx.lineTo(-3, 7.7); ctx.quadraticCurveTo(-4.8, 7.7, -5, 5.9);
+    ctx.closePath(); ctx.clip();
+    // 裁剪区域随杯子转，水与高光反向抵消杯倾角及身体后仰，保持画面水平。
+    ctx.rotate(-(state.cupRotation + 2.5 * state.lift) * Math.PI / 180);
+    ctx.fillStyle = '#9DD3EC'; ctx.fillRect(-24, -3.6, 48, 28);
+    stroke(ctx, c => { c.moveTo(-4.2, -1.7); c.quadraticCurveTo(-2.6, -1.3, -0.9, -1.7); }, 1.1, '#FFFFFF');
+    ctx.restore();
+    stroke(ctx, body, 2.2);
+    stroke(ctx, c => c.ellipse(0, -9.2, 7.5, 1.9, 0, 0, TAU), 2.2);
     ctx.restore();
   }
 
@@ -171,6 +213,11 @@
       ctx.rotate(3.5 * state.gaze * Math.PI / 180);
       ctx.translate(-50, -93);
     }
+    if (motion === 'drinkWater') {
+      ctx.translate(50, 93);
+      ctx.rotate(2.5 * state.lift * Math.PI / 180);
+      ctx.translate(-50, -93);
+    }
     drawBody(ctx);
     drawLeaves(ctx);
     drawFace(ctx, motion, state);
@@ -180,6 +227,15 @@
       drawArm(ctx, 85, 74, 96, 64, 73.5, 58 - 0.7 * state.breath);
     }
     if (motion === 'rollEyes') drawArm(ctx, 85, 74, 98, 58, 83 + 7 * Math.cos(state.angle), 48 + 8 * Math.sin(state.angle));
+    if (motion === 'drinkWater') {
+      // 根部与其他右臂一致；肘部向下、向外弯，随抬杯和轻啜平滑移动。
+      const bendX = 83 + 2.5 * state.lift;
+      const bendY = 83 + 2.5 * state.lift - 0.5 * state.sip;
+      drawArm(ctx, 85, 74, bendX, bendY, state.handX, state.handY);
+      // 圆手压在杯身右侧约三分之一，露出杯沿、左壁、水面及高光。
+      drawCup(ctx, state);
+      drawHand(ctx, state.handX, state.handY, state.cupRotation, 0.9);
+    }
     if (motion === 'rollEyes') drawTrail(ctx, t);
     if (motion === 'lookFar') drawHand(ctx, 68 + 2.8 * state.gaze, 43 - 3.7 * state.gaze, 8);
     if (motion === 'closeEyes') {
@@ -206,7 +262,7 @@
     const t = (now - startedAt) / 1000;
     for (const canvas of canvases) {
       const ratio = window.devicePixelRatio || 1;
-      const pixels = Math.round(240 * ratio);
+      const pixels = Math.max(1, Math.round(canvas.clientWidth * ratio));
       if (canvas.width !== pixels || canvas.height !== pixels) { canvas.width = pixels; canvas.height = pixels; }
       const ctx = canvas.getContext('2d');
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, pixels, pixels);
@@ -216,8 +272,8 @@
       draw(ctx, motion, time);
     }
     document.getElementById('status').textContent = fixedTime !== null
-      ? `上排已固定在 ${fixedTime} 秒；下排显示各动作的静止代表帧。`
-      : reduced.matches ? '系统已启用减少动态效果，两排均显示静止代表帧。' : '四个动作同步计时、循环播放。添加 ?still=1.8 可停在指定秒数。';
+      ? `动作演示和 76px 预览已固定在 ${fixedTime} 秒；静止代表帧一排始终显示各动作的代表时刻。`
+      : reduced.matches ? '系统已启用减少动态效果，所有预览均显示静止代表帧。' : '五个动作同步计时、循环播放。添加 ?still=1.8 可停在指定秒数。';
     animationID = fixedTime === null && !reduced.matches ? requestAnimationFrame(render) : null;
   }
 

@@ -24,6 +24,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
     case settingsAbout = "settings-about"
     case settingsScheduleEnabled = "settings-schedule-enabled"
     case panelAwaiting = "panel-awaiting"
+    case panelAwaitingDrinkWater = "panel-awaiting-drink-water"
     case panelResting = "panel-resting"
     case panelCelebrating = "panel-celebrating"
     case onboarding
@@ -32,7 +33,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
         switch self {
         case .menuCollapsed, .menuWeek, .menuDeferred, .menuSnooze, .menuWorst: 280
         case .settingsGeneral, .settingsRest, .settingsSchedule, .settingsAbout, .settingsScheduleEnabled: 520
-        case .panelAwaiting, .panelResting, .panelCelebrating: 300
+        case .panelAwaiting, .panelAwaitingDrinkWater, .panelResting, .panelCelebrating: 300
         case .onboarding: 460
         }
     }
@@ -40,7 +41,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
     var fixedHeight: CGFloat? {
         switch self {
         case .settingsGeneral, .settingsRest, .settingsSchedule, .settingsAbout, .settingsScheduleEnabled: 480
-        case .panelAwaiting, .panelResting, .panelCelebrating: 264
+        case .panelAwaiting, .panelAwaitingDrinkWater, .panelResting, .panelCelebrating: 264
         default: nil
         }
     }
@@ -93,13 +94,15 @@ private final class SnapshotFixture {
         stats = TomatoStats(defaults: defaults, now: { initialDate }, calendar: calendar)
         schedule = WorkScheduleSettings(defaults: defaults)
         schedule.schedule = WorkSchedule(isEnabled: scene == .settingsScheduleEnabled, startHour: 9, endHour: 19, weekdaysOnly: true)
-        // 固定从第一个动作开始；正常提醒后选中第 0 个动作，不依赖实际使用历史。
+        // 提醒前固定轮换位置；喝水场景选中第 4 个，其余场景仍从第 0 个开始。
         let clock = SnapshotClock(now: initialDate)
         model = EyeBreakModel(
             workInterval: 1200, restDuration: 20, reminder: SnapshotReminder(),
             now: { clock.now }, idleTime: { 0 },
             isInMeeting: { scene == .menuDeferred }, isFullscreen: { false },
-            isWorkTime: { true }, exerciseIndex: -1, usesSystemTimer: false
+            isWorkTime: { true },
+            exerciseIndex: scene == .panelAwaitingDrinkWater ? RestExercise.drinkWater.rawValue - 1 : -1,
+            usesSystemTimer: false
         )
         updates.setSnapshotState(availableVersion: scene == .menuWorst ? "1.4.0" : nil)
         panelState.isPresented = true
@@ -121,11 +124,11 @@ private final class SnapshotFixture {
             model.snooze()
             model.setWorkInterval(1500)
             #expect(model.isSnoozing)
-        case .panelAwaiting, .panelResting, .panelCelebrating:
+        case .panelAwaiting, .panelAwaitingDrinkWater, .panelResting, .panelCelebrating:
             model.start()
             clock.now += 1200
             model.tick()
-            #expect(model.exerciseIndex == 0)
+            #expect(model.exercise == (scene == .panelAwaitingDrinkWater ? .drinkWater : .lookFar))
             if scene == .panelResting {
                 model.startBreak()
                 clock.now += 7
@@ -165,8 +168,11 @@ private final class SnapshotFixture {
                 model: model, launchAtLogin: launchAtLogin, stats: stats, sounds: sounds,
                 updates: updates, schedule: schedule, presentation: presentation, onReplayOnboarding: {}
             ))
-        case .panelAwaiting, .panelResting, .panelCelebrating:
-            return AnyView(BreakPanelView(model: model, state: panelState, stats: stats, animationTime: 1.8))
+        case .panelAwaiting, .panelAwaitingDrinkWater, .panelResting, .panelCelebrating:
+            return AnyView(BreakPanelView(
+                model: model, state: panelState, stats: stats,
+                animationTime: scene == .panelAwaitingDrinkWater ? 1.4 : 1.8
+            ))
         case .onboarding:
             return AnyView(OnboardingView(model: model, begin: {}, dismiss: {}))
         }
@@ -181,6 +187,44 @@ private final class SnapshotClock {
 
 @MainActor
 struct SnapshotTests {
+    @Test("520 × 480 休息页的五个开关及单动作提示完整显示，无需滚动", arguments: [false, true], SnapshotAppearance.allCases)
+    private func restSettingsFitWindow(onlyDrinkWater: Bool, appearance: SnapshotAppearance) async throws {
+        let fixture = try SnapshotFixture(scene: .settingsRest)
+        defer { fixture.cleanUp() }
+        if onlyDrinkWater {
+            for exercise in RestExercise.allCases where exercise != .drinkWater {
+                fixture.model.setExercise(exercise, enabled: false)
+            }
+            #expect(fixture.model.enabledExercises == [.drinkWater])
+        }
+        let content = fixture.content(for: .settingsRest)
+            .defaultAppStorage(fixture.defaults)
+            .environment(\.locale, Locale(identifier: SnapshotEnvironment.language))
+            .environment(\.colorScheme, appearance.colorScheme)
+            .transaction { $0.disablesAnimations = true }
+        let host = NSHostingView(rootView: content)
+        host.appearance = NSAppearance(named: appearance.name)
+        host.frame = NSRect(x: 0, y: 0, width: 520, height: 480)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = host.appearance
+        window.contentView = host
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        await Task.yield()
+        host.layoutSubtreeIfNeeded()
+
+        // 检查实际滚动内容和可见区域，避免固定窗口高度掩盖第五个开关被截断。
+        let scrollView = try #require(firstScrollView(in: host))
+        let document = try #require(scrollView.documentView)
+        let visibleSize = scrollView.contentView.bounds.size
+        #expect(document.bounds.height > 200)
+        #expect(document.bounds.height <= visibleSize.height + 1)
+        #expect(document.bounds.width <= visibleSize.width + 1)
+        #expect(host.bounds.size == NSSize(width: 520, height: 480))
+        print("Settings 休息页 \(SnapshotEnvironment.language) \(appearance.rawValue)，仅喝水=\(onlyDrinkWater)：内容 \(document.bounds.size)，可见 \(visibleSize)")
+    }
+
     @Test(
         "按宿主语言生成菜单、设置、提醒和引导的深浅色 PNG",
         .enabled(if: SnapshotEnvironment.directory?.isEmpty == false, "设置 EYEBREAK_SNAPSHOT_DIR 后才生成截图"),
@@ -246,5 +290,13 @@ struct SnapshotTests {
         }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+
+    private func firstScrollView(in view: NSView) -> NSScrollView? {
+        if let scrollView = view as? NSScrollView { return scrollView }
+        for child in view.subviews {
+            if let scrollView = firstScrollView(in: child) { return scrollView }
+        }
+        return nil
     }
 }

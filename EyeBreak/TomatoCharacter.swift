@@ -12,6 +12,8 @@ struct TomatoCharacter: View {
         case closeEyes
         /// 眼珠跟着带手臂的小手顺时针画圈
         case rollEyes
+        /// 肘弯手臂抬杯，眯眼轻啜两口后放下
+        case drinkWater
     }
 
     var motion: Motion
@@ -89,7 +91,7 @@ enum TomatoPlayback {
     nonisolated static func cycleDuration(for motion: TomatoCharacter.Motion) -> TimeInterval {
         switch motion {
         case .still: return 0
-        case .lookFar, .closeEyes: return 4
+        case .lookFar, .closeEyes, .drinkWater: return 4
         case .blink: return 6.4
         case .rollEyes: return 3
         }
@@ -122,6 +124,13 @@ private enum TomatoRenderer {
         var gaze = 0.0
         var breath = 0.0
         var angle = 0.0
+        var lift = 0.0
+        var sip = 0.0
+        var cupX = 0.0
+        var cupY = 0.0
+        var cupRotation = 0.0
+        var handX = 0.0
+        var handY = 0.0
     }
 
     nonisolated static func representativeTime(for motion: TomatoCharacter.Motion) -> Double {
@@ -130,6 +139,7 @@ private enum TomatoRenderer {
         case .lookFar: return 1.8
         case .blink: return 0.78
         case .rollEyes: return 1.5
+        case .drinkWater: return 1.4
         }
     }
 
@@ -185,6 +195,19 @@ private enum TomatoRenderer {
             state.angle = circleAngle(t)
             state.lookX = 3 * cos(state.angle)
             state.lookY = 3 * sin(state.angle)
+        case .drinkWater:
+            // 四秒一轮：抬杯、两次轻啜、放下、停顿；沿用设计稿的连续缓动。
+            let p = phase(t, duration: TomatoPlayback.cycleDuration(for: .drinkWater))
+            state.lift = p < 1 ? ease(p) : p < 2.6 ? 1 : p < 3.6 ? 1 - ease(p - 2.6) : 0
+            state.sip = p >= 1 && p < 2.6 ? pow(sin(2 * .pi * (p - 1) / 1.6), 2) : 0
+            state.closure = ease((state.lift - 0.55) / 0.45)
+            // 杯身中心定位；圆手贴住杯身右侧中下部，随杯子一起转动。
+            state.cupX = 68.5 - 13.7 * state.lift
+            state.cupY = 80 - 2.3 * state.lift - 0.35 * state.sip
+            state.cupRotation = -22 * state.lift - 4 * state.sip
+            let angle = state.cupRotation * .pi / 180
+            state.handX = state.cupX + 9.7 * cos(angle) - 2 * sin(angle)
+            state.handY = state.cupY + 9.7 * sin(angle) + 2 * cos(angle)
         }
         return state
     }
@@ -205,6 +228,11 @@ private enum TomatoRenderer {
             ctx.rotate(by: .degrees(3.5 * state.gaze))
             ctx.translateBy(x: -50, y: -93)
         }
+        if motion == .drinkWater {
+            ctx.translateBy(x: 50, y: 93)
+            ctx.rotate(by: .degrees(2.5 * state.lift))
+            ctx.translateBy(x: -50, y: -93)
+        }
         drawBody(ctx)
         drawLeaves(ctx)
         drawFace(ctx, motion: motion, state: state)
@@ -223,10 +251,18 @@ private enum TomatoRenderer {
         case .rollEyes:
             drawArm(ctx, rootX: 85, rootY: 74, bendX: 98, bendY: 58,
                     x: 83 + 7 * cos(state.angle), y: 48 + 8 * sin(state.angle))
+        case .drinkWater:
+            // 根部与其他右臂一致；肘部向下、向外弯，随抬杯和轻啜平滑移动。
+            let bendX = 83 + 2.5 * state.lift
+            let bendY = 83 + 2.5 * state.lift - 0.5 * state.sip
+            drawArm(ctx, rootX: 85, rootY: 74, bendX: bendX, bendY: bendY, x: state.handX, y: state.handY)
+            // 杯子盖住手臂，圆手最后压在杯身右侧，保留杯沿、水面及高光。
+            drawCup(ctx, state: state)
+            drawHand(ctx, x: state.handX, y: state.handY, rotation: state.cupRotation, scale: 0.9)
         }
         if motion == .rollEyes { drawTrail(ctx, t: t) }
         switch motion {
-        case .still, .blink:
+        case .still, .blink, .drinkWater:
             break
         case .lookFar:
             // 手下沿与移动后的眼睛顶部始终相隔约 2～3。
@@ -283,7 +319,9 @@ private enum TomatoRenderer {
             if motion == .closeEyes {
                 closedEye(ctx, x: x, y: 60)
             } else {
-                openEye(ctx, x: x + state.lookX, y: 60 + state.lookY, closure: state.closure)
+                // 喝水时眼皮最终与闭眼弧线的 5.6 深度一致，其他动作仍使用原深度。
+                openEye(ctx, x: x + state.lookX, y: 60 + state.lookY, closure: state.closure,
+                        closedDepth: motion == .drinkWater ? 5.6 : 3)
             }
         }
         for x: Double in [28, 72] {
@@ -297,16 +335,16 @@ private enum TomatoRenderer {
         ctx.stroke(mouth, with: .color(ink), style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
     }
 
-    nonisolated private static func openEye(_ context: GraphicsContext, x: Double, y: Double, closure: Double) {
+    nonisolated private static func openEye(_ context: GraphicsContext, x: Double, y: Double, closure: Double, closedDepth: Double = 3) {
         var ctx = context
         // 保持眼珠和高光原尺寸，用上下眼皮围成的开口裁切，避免把眼珠压扁。
         let top = y - 6.9 * (1 - closure)
         let bottom = y + 6.9 * (1 - closure)
         let opening = Path { p in
             p.move(to: CGPoint(x: x - 5.9, y: top))
-            p.addQuadCurve(to: CGPoint(x: x + 5.9, y: top), control: CGPoint(x: x, y: top + 3 * closure))
+            p.addQuadCurve(to: CGPoint(x: x + 5.9, y: top), control: CGPoint(x: x, y: top + closedDepth * closure))
             p.addLine(to: CGPoint(x: x + 5.9, y: bottom))
-            p.addQuadCurve(to: CGPoint(x: x - 5.9, y: bottom), control: CGPoint(x: x, y: bottom + 3 * closure))
+            p.addQuadCurve(to: CGPoint(x: x - 5.9, y: bottom), control: CGPoint(x: x, y: bottom + closedDepth * closure))
             p.closeSubpath()
         }
         ctx.clip(to: opening)
@@ -320,7 +358,7 @@ private enum TomatoRenderer {
         if closure > 0 {
             let lid = Path { p in
                 p.move(to: CGPoint(x: x - 5.4, y: top))
-                p.addQuadCurve(to: CGPoint(x: x + 5.4, y: top), control: CGPoint(x: x, y: top + 3 * closure))
+                p.addQuadCurve(to: CGPoint(x: x + 5.4, y: top), control: CGPoint(x: x, y: top + closedDepth * closure))
             }
             context.stroke(lid, with: .color(ink.opacity(closure)), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
         }
@@ -345,10 +383,11 @@ private enum TomatoRenderer {
                    style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
     }
 
-    nonisolated private static func drawHand(_ context: GraphicsContext, x: Double, y: Double, rotation: Double) {
+    nonisolated private static func drawHand(_ context: GraphicsContext, x: Double, y: Double, rotation: Double, scale: Double = 1) {
         var ctx = context
         ctx.translateBy(x: x, y: y)
         ctx.rotate(by: .degrees(rotation))
+        ctx.scaleBy(x: scale, y: scale)
         // 横向椭圆手掌，宽高比 1.15；高光和底部暖色随手掌一起旋转。
         let hand = Path(ellipseIn: CGRect(x: -8.05, y: -7, width: 16.1, height: 14))
         ctx.fill(hand, with: .color(Color(red: 1, green: 253 / 255, blue: 248 / 255)))
@@ -356,7 +395,47 @@ private enum TomatoRenderer {
         clipped.clip(to: hand)
         fillEllipse(clipped, x: 0, y: 4.1, rx: 7, ry: 2.6, color: Color(red: 244 / 255, green: 235 / 255, blue: 221 / 255))
         fillEllipse(clipped, x: -2.6, y: -3, rx: 2.8, ry: 1.6, color: .white, rotation: -32)
-        ctx.stroke(hand, with: .color(ink), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+        ctx.stroke(hand, with: .color(ink), style: StrokeStyle(lineWidth: 2.2 / scale, lineCap: .round, lineJoin: .round))
+    }
+
+    nonisolated private static func drawCup(_ context: GraphicsContext, state: Frame) {
+        var ctx = context
+        ctx.translateBy(x: state.cupX, y: state.cupY)
+        ctx.rotate(by: .degrees(state.cupRotation))
+        // 杯身中心为原点，宽 15、高 18.4；路径和描边逐项沿用设计稿。
+        let body = Path { p in
+            p.move(to: CGPoint(x: -7.5, y: -9.2))
+            p.addQuadCurve(to: CGPoint(x: 7.5, y: -9.2), control: CGPoint(x: 0, y: -11.5))
+            p.addLine(to: CGPoint(x: 6.35, y: 6.1))
+            p.addQuadCurve(to: CGPoint(x: 3.2, y: 9.2), control: CGPoint(x: 6.1, y: 9.2))
+            p.addLine(to: CGPoint(x: -3.2, y: 9.2))
+            p.addQuadCurve(to: CGPoint(x: -6.35, y: 6.1), control: CGPoint(x: -6.1, y: 9.2))
+            p.closeSubpath()
+        }
+        ctx.fill(body, with: .color(Color(red: 1, green: 253 / 255, blue: 248 / 255)))
+        let interior = Path { p in
+            p.move(to: CGPoint(x: -6.1, y: -8.6))
+            p.addQuadCurve(to: CGPoint(x: 6.1, y: -8.6), control: CGPoint(x: 0, y: -10))
+            p.addLine(to: CGPoint(x: 5, y: 5.9))
+            p.addQuadCurve(to: CGPoint(x: 3, y: 7.7), control: CGPoint(x: 4.8, y: 7.7))
+            p.addLine(to: CGPoint(x: -3, y: 7.7))
+            p.addQuadCurve(to: CGPoint(x: -5, y: 5.9), control: CGPoint(x: -4.8, y: 7.7))
+            p.closeSubpath()
+        }
+        var water = ctx
+        water.clip(to: interior)
+        // 裁剪随杯子转，水和高光抵消杯倾角及身体后仰，保持画面水平。
+        water.rotate(by: .degrees(-(state.cupRotation + 2.5 * state.lift)))
+        water.fill(Path(CGRect(x: -24, y: -3.6, width: 48, height: 28)),
+                   with: .color(Color(red: 157 / 255, green: 211 / 255, blue: 236 / 255)))
+        let shine = Path { p in
+            p.move(to: CGPoint(x: -4.2, y: -1.7))
+            p.addQuadCurve(to: CGPoint(x: -0.9, y: -1.7), control: CGPoint(x: -2.6, y: -1.3))
+        }
+        water.stroke(shine, with: .color(.white), style: StrokeStyle(lineWidth: 1.1, lineCap: .round, lineJoin: .round))
+        ctx.stroke(body, with: .color(ink), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+        let rim = Path(ellipseIn: CGRect(x: -7.5, y: -11.1, width: 15, height: 3.8))
+        ctx.stroke(rim, with: .color(ink), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
     }
 
     nonisolated private static func drawTrail(_ ctx: GraphicsContext, t: Double) {
@@ -389,6 +468,7 @@ extension RestExercise {
         case .blink: return .blink
         case .closeEyes: return .closeEyes
         case .rollEyes: return .rollEyes
+        case .drinkWater: return .drinkWater
         }
     }
 }

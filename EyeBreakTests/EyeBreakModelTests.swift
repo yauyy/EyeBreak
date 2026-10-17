@@ -4,12 +4,18 @@ import Testing
 @testable import EyeBreak
 
 struct EnabledExercisesConfigTests {
+    @Test("新增喝水动作保留 1.4 四个动作的持久化序号")
+    func exerciseRawValuesStayCompatible() {
+        #expect(RestExercise.allCases.map(\.rawValue) == [0, 1, 2, 3, 4])
+        #expect(RestExercise.drinkWater.rawValue == 4)
+    }
+
     @Test("新安装未保存动作偏好时默认全部开启")
     func defaultsToAllExercises() {
         let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == Set(RestExercise.allCases))
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.lookFar, .blink, .closeEyes, .rollEyes, .drinkWater])
     }
 
     @Test("动作偏好保存后读取一致，不写入其它偏好")
@@ -19,18 +25,85 @@ struct EnabledExercisesConfigTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         EyeBreakConfig.saveEnabledExercises([.blink, .closeEyes], to: defaults)
         #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.blink, .closeEyes])
-        #expect(Set((defaults.persistentDomain(forName: suiteName) ?? [:]).keys) == ["enabledExercises"])
+        #expect(defaults.array(forKey: "disabledExercises") as? [Int] == [0, 3, 4])
+        #expect(Set((defaults.persistentDomain(forName: suiteName) ?? [:]).keys) == ["disabledExercises"])
     }
 
-    @Test("持久化全关或未知动作时回退为只有看看远处", arguments: [[], [99]])
-    func emptyOrUnknownExercisesFallBack(saved: [Int]) {
+    @Test("旧偏好只迁移 1.4 的关闭动作，喝水默认开启且保留旧键", arguments: [[0, 2], [0, 2, -1, 99]])
+    func legacyPreferencesMigrate(saved: [Int]) {
         let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(saved, forKey: "enabledExercises")
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.lookFar, .closeEyes, .drinkWater])
+        #expect(defaults.array(forKey: "disabledExercises") as? [Int] == [1, 3])
+        #expect(defaults.array(forKey: "enabledExercises") as? [Int] == saved)
+    }
+
+    @Test("旧偏好全部开启时升级后五个动作全开")
+    func allLegacyExercisesEnabled() {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set([0, 1, 2, 3], forKey: "enabledExercises")
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == Set(RestExercise.allCases))
+        #expect(defaults.array(forKey: "disabledExercises") as? [Int] == [])
+    }
+
+    @Test("旧偏好全关或只有未知值时，新增喝水仍默认开启", arguments: [[], [-1, 99]])
+    func emptyLegacyPreferencesStillEnableNewExercise(saved: [Int]) {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(saved, forKey: "enabledExercises")
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.drinkWater])
+        #expect(defaults.array(forKey: "disabledExercises") as? [Int] == [0, 1, 2, 3])
+    }
+
+    @Test("已有关闭列表时忽略旧启用列表，包括空的关闭列表", arguments: [[], [1, 4]])
+    func disabledPreferencesTakePrecedence(saved: [Int]) {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set([], forKey: "enabledExercises")
+        defaults.set(saved, forKey: "disabledExercises")
+        let disabled = Set(saved.compactMap(RestExercise.init(rawValue:)))
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == Set(RestExercise.allCases).subtracting(disabled))
+        #expect(defaults.array(forKey: "disabledExercises") as? [Int] == saved)
+    }
+
+    @Test("关闭列表里的未知动作忽略", arguments: [[-1, 99], [1, -1, 99]])
+    func unknownDisabledExercisesAreIgnored(saved: [Int]) {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(saved, forKey: "disabledExercises")
+        let expected = saved.contains(1) ? Set(RestExercise.allCases).subtracting([.blink]) : Set(RestExercise.allCases)
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == expected)
+    }
+
+    @Test("关闭列表全关时回退为只有看看远处")
+    func allDisabledExercisesFallBack() {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set([0, 1, 2, 3, 4], forKey: "disabledExercises")
         #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.lookFar])
         EyeBreakConfig.saveEnabledExercises([], to: defaults)
-        #expect(defaults.array(forKey: "enabledExercises") as? [Int] == [RestExercise.lookFar.rawValue])
+        #expect(defaults.array(forKey: "disabledExercises") as? [Int] == [1, 2, 3, 4])
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.lookFar])
+    }
+
+    @Test("保存新动作偏好时不改写旧键，回退版本仍保留原选择")
+    func savingPreservesLegacyPreferences() {
+        let suiteName = "EyeBreakTests.enabledExercises.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set([0, 2], forKey: "enabledExercises")
+        EyeBreakConfig.saveEnabledExercises([.drinkWater], to: defaults)
+        #expect(EyeBreakConfig.loadEnabledExercises(from: defaults) == [.drinkWater])
+        #expect(defaults.array(forKey: "disabledExercises") as? [Int] == [0, 1, 2, 3])
+        #expect(defaults.array(forKey: "enabledExercises") as? [Int] == [0, 2])
     }
 }
 
@@ -646,14 +719,27 @@ struct EyeBreakModelTests {
 
     // MARK: - 休息内容轮换
 
-    @Test("第一次休息是看看远处，之后依次轮换并循环")
+    @Test("第一次休息是看看远处，之后五个动作依次轮换并循环")
     func exercisesRotate() {
+        var seen: [RestExercise] = []
+        model.start()
+        for _ in 0..<6 {
+            advance(20 * 60)
+            seen.append(model.exercise)
+            // 跳过休息会直接开始新一轮专注
+            model.skipBreak()
+        }
+        #expect(seen == [.lookFar, .blink, .closeEyes, .rollEyes, .drinkWater, .lookFar])
+    }
+
+    @Test("关闭喝水后跳过第五项，原来四个动作继续依次循环")
+    func exercisesSkipDisabledDrinkWater() {
+        model.setExercise(.drinkWater, enabled: false)
         var seen: [RestExercise] = []
         model.start()
         for _ in 0..<5 {
             advance(20 * 60)
             seen.append(model.exercise)
-            // 跳过休息会直接开始新一轮专注
             model.skipBreak()
         }
         #expect(seen == [.lookFar, .blink, .closeEyes, .rollEyes, .lookFar])
@@ -691,13 +777,22 @@ struct EyeBreakModelTests {
         #expect(model.exercise == .lookFar)
     }
 
+    @Test("关闭最后一个启用动作时回退为看看远处", arguments: RestExercise.allCases)
+    func disablingLastExerciseFallsBack(lastExercise: RestExercise) {
+        model.setEnabledExercises([lastExercise])
+        model.setExercise(lastExercise, enabled: false)
+        #expect(model.enabledExercises == [.lookFar])
+        model.startBreakNow()
+        #expect(model.exercise == .lookFar)
+    }
+
     @Test("动作开关变化通知持久化，重复设置不重复保存")
     func exercisePreferencesNotifyPersistence() {
         var saved: [Set<RestExercise>] = []
         model.onEnabledExercisesChanged = { saved.append($0) }
         model.setExercise(.blink, enabled: false)
         model.setExercise(.blink, enabled: false)
-        #expect(saved == [[.lookFar, .closeEyes, .rollEyes]])
+        #expect(saved == [[.lookFar, .closeEyes, .rollEyes, .drinkWater]])
         model.setExercise(.blink, enabled: true)
         #expect(saved.last == Set(RestExercise.allCases))
     }

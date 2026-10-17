@@ -8,32 +8,41 @@
     :root { color-scheme: light; font-family: ui-rounded, "PingFang SC", system-ui, sans-serif; color: #4A3428; background: #FFF3E8; }
     * { box-sizing: border-box; }
     body { margin: 0; padding: 36px 28px; }
-    main { width: max-content; min-width: 1032px; margin: auto; }
+    main { width: 100%; max-width: 1296px; margin: auto; }
     h1 { margin: 0 0 10px; font-size: 28px; }
     h2 { margin: 28px 0 12px; font-size: 18px; }
     p { margin: 8px 0; color: #795B4B; line-height: 1.7; }
-    .row { display: grid; grid-template-columns: repeat(4, 240px); gap: 24px; }
+    .row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; }
     figure { margin: 0; text-align: center; background: #FFFDF8; border: 2px solid #EEDAC9; border-radius: 24px; overflow: hidden; }
-    canvas { display: block; width: 240px; height: 240px; margin: -2px -2px 0; }
+    canvas { display: block; width: 100%; height: auto; aspect-ratio: 1; }
     figcaption { padding: 0 8px 18px; font-size: 17px; font-weight: 650; }
     small { display: block; margin-top: 5px; color: #795B4B; font-size: 12px; font-weight: 400; }
     code { background: #F5E5D6; border-radius: 5px; padding: 2px 5px; }
-    details { max-width: 1032px; margin-top: 28px; line-height: 1.8; }
+    .samples { display: flex; justify-content: center; gap: 12px; padding: 16px 8px 12px; }
+    .sample { width: 76px; height: 76px; flex: 0 0 76px; border-radius: 12px; background: #FFF3E8; }
+    .sample.dark { background: #292624; }
+    .sample canvas { width: 76px; height: 76px; }
+    .compact figcaption { font-size: 15px; padding-bottom: 14px; }
+    details { margin-top: 28px; line-height: 1.8; }
     summary { cursor: pointer; font-weight: 600; }
     #status { min-height: 28px; }
+    @media (max-width: 1150px) { .row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 760px) { body { padding: 28px 16px; } .row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
+    @media (max-width: 440px) { .row { grid-template-columns: minmax(0, 1fr); } }
   </style>
   <script src="tomato-motion.js" defer></script>
 </head>
 <body>
   <main>
     <h1>番茄仔 · 一起休息眼睛</h1>
-    <p id="status" role="status">四个动作同步计时、循环播放。添加 <code>?still=1.8</code> 可停在指定秒数。</p>
+    <p id="status" role="status">五个动作同步计时、循环播放。添加 <code>?still=1.8</code> 可停在指定秒数。</p>
     <h2>动作演示</h2>
     <section class="row" aria-label="循环动作演示">
       <figure><canvas width="240" height="240" data-motion="lookFar" aria-label="手搭凉棚，慢慢望向右上方"></canvas><figcaption>看看远处<small>4 秒 · 望向右上，停留，再回来</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="blink" aria-label="有节奏地眨眼，偶尔连眨"></canvas><figcaption>眨眨眼<small>约 2 秒一次 · 偶尔连眨两下</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="closeEyes" aria-label="双手轻捂眼睛外侧，露出闭眼弧线，轻轻呼吸"></canvas><figcaption>闭眼放松<small>4 秒 · 轻捂眼睛外侧，轻轻呼吸</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="rollEyes" aria-label="眼珠跟着带手臂的小手顺时针画圈"></canvas><figcaption>转转眼球<small>3 秒 · 眼珠跟着小手画圈</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="drinkWater" aria-label="右手端起小水杯，眯眼轻啜两口，再慢慢放下"></canvas><figcaption>喝口水<small>4 秒 · 抬杯，轻啜两口，放下停顿</small></figcaption></figure>
     </section>
     <h2>减少动态效果 · 静止代表帧</h2>
     <section class="row" aria-label="减少动态效果的静止代表帧">
@@ -41,17 +50,32 @@
       <figure><canvas width="240" height="240" data-motion="blink" data-reduced aria-label="眨眼代表帧"></canvas><figcaption>眨眨眼<small>上眼皮落下，停在闭合时刻</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="closeEyes" data-reduced aria-label="双手捂在外侧且看得见闭眼的代表帧"></canvas><figcaption>闭眼放松<small>双手捂在外侧，闭眼弧线和小嘴清楚可见</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="rollEyes" data-reduced aria-label="转眼代表帧"></canvas><figcaption>转转眼球<small>保留手臂和奶油白描边圆点轨迹</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="drinkWater" data-reduced aria-label="杯沿贴近嘴边，眯眼喝水的代表帧"></canvas><figcaption>喝口水<small>1.4 秒 · 杯沿贴嘴，眯眼轻啜</small></figcaption></figure>
+    </section>
+    <h2>76px 提醒面板尺寸 · 浅色 / 深色</h2>
+    <p>五个动作与上排使用相同时间；每格并排显示浅色、深色背景，画布均为 76×76px。</p>
+    <section class="row compact" aria-label="五个动作的 76px 浅色和深色背景对比">
+      <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="lookFar" aria-label="76px 浅色背景远眺"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="lookFar" aria-label="76px 深色背景远眺"></canvas></div></div><figcaption>看看远处<small>浅色 / 深色 · 76px</small></figcaption></figure>
+      <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="blink" aria-label="76px 浅色背景眨眼"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="blink" aria-label="76px 深色背景眨眼"></canvas></div></div><figcaption>眨眨眼<small>浅色 / 深色 · 76px</small></figcaption></figure>
+      <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="closeEyes" aria-label="76px 浅色背景闭眼"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="closeEyes" aria-label="76px 深色背景闭眼"></canvas></div></div><figcaption>闭眼放松<small>浅色 / 深色 · 76px</small></figcaption></figure>
+      <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="rollEyes" aria-label="76px 浅色背景转眼"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="rollEyes" aria-label="76px 深色背景转眼"></canvas></div></div><figcaption>转转眼球<small>浅色 / 深色 · 76px</small></figcaption></figure>
+      <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="drinkWater" aria-label="76px 浅色背景喝水"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="drinkWater" aria-label="76px 深色背景喝水"></canvas></div></div><figcaption>喝口水<small>浅色 / 深色 · 76px</small></figcaption></figure>
     </section>
     <details>
       <summary>设计与实现约定</summary>
-      <p>模块划分：本页和 tomato-motion.js 提供离线设计预览；App 的 TomatoCharacter.swift 使用相同坐标、配色和时间公式。</p>
-      <p>接口与交互：保留 motion、size；App 可选 time 参数用于固定帧对照。上排遵循系统的减少动态效果设置，下排始终显示代表帧。?still 参数只固定上排时间，下排仍保留与 App 相同的各动作代表帧。</p>
+      <p>模块划分：本页和 tomato-motion.js 提供五个动作的离线设计预览；本轮修订 Canvas 喝水设计的下垂肘弯，保留侧握、倾杯、水平水面和放下姿势，复用现有四个动作的 100×100 坐标、配色和绘制函数，供后续移植 TomatoCharacter.swift 对照。</p>
+      <p>接口与交互：frame(motion, t) 以纯时间公式计算姿态，draw(ctx, motion, t) 绘制。动作演示和 76px 预览遵循系统的减少动态效果设置，静止代表帧一排始终显示代表时刻。?still 参数固定动作演示和 76px 预览的时间，静止代表帧一排不受影响；显式固定帧优先于系统设置，便于逐帧验收。</p>
       <p>后台数据库：本次是纯绘制改动，不涉及数据存储或接口。</p>
-      <p>关联影响：BreakPanel 等待开始和休息中共用同一动作组件；RestExercise 映射沿用现有实现。</p>
-      <p>坐标与决策：100×100 坐标系，身体宽 76；手掌宽 16.1、高 14（1.15:1），描边 2.2，按手臂末端方向旋转，远眺手掌固定向下倾 8°。手臂用同一条二次贝塞尔曲线先画 #4A3428、宽 11，再画番茄红 #F0453A、宽 7，端点和转角均为 round。根部固定在身体下半部 (15, 74)、(85, 74)，粗圆端与身体重叠；控制点位于身体外侧，形成一根实心弯胳膊。图层依次为身体、叶子、脸、胳膊、轨迹、手掌。</p>
+      <p>关联影响：本轮改动仅位于 Design/motion/tomato-motion.js 和 index.html；App 的 RestExercise、BreakPanel、TomatoCharacter.swift 留待画风验收通过后移植。</p>
+      <p>坐标与决策：100×100 坐标系，身体宽 76；原四个动作手掌宽 16.1、高 14（1.15:1），描边 2.2，按手臂末端方向旋转，远眺手掌固定向下倾 8°。手臂用同一条二次贝塞尔曲线先画 #4A3428、宽 11，再画番茄红 #F0453A、宽 7，端点和转角均为 round。原四个动作根部固定在身体下半部 (15, 74)、(85, 74)，粗圆端与身体重叠；控制点位于身体外侧，形成一根实心弯胳膊。图层依次为身体、叶子、脸、胳膊、轨迹、手掌；喝水的根部、控制点和图层单独见下文。</p>
       <p>远眺手中心 (68 + 2.8g, 43 − 3.7g)，右臂从 (85, 74) 经控制点 (98, 58) 抬起；手下沿与右眼顶部留约 2～3 间隙，眼珠和白色高光同步移动 (3g, −3g)，身体绕 (50, 93) 向右倾 3.5g°。闭眼双手中心 (26.5, 58 − 0.7b)、(73.5, 58 − 0.7b)，双臂分别从 (15, 74)、(85, 74) 经控制点 (4, 64)、(96, 64) 弯向手掌，只遮闭眼弧线外侧约三分之一，嘴完整露出。g 是远眺缓动进度，b 是呼吸进度。</p>
       <p>画圈手中心 (83 + 7cosθ, 48 + 8sinθ)，右臂根部 (85, 74) 和控制点 (98, 58) 固定，末端跟随手移动，手掌随手臂方向转动；眼珠画圈半径 3，白色高光同步移动，方向与手相同。轨迹用奶油白填充、0.65 深棕描边，逐个变小、变淡。静止代表帧时间仍为远眺 1.8s、眨眼 0.78s、闭眼 0s、转眼 1.5s，使用相同的新绘制。</p>
-      <p>验收点：可用 ?still=0、1、2、3 对照固定帧，画圈可补看 0.75、1.5、2.25 秒；检查手臂是实心圆头粗管、根部连接、闭眼弧线露出、远眺手眼间隙、眼珠与高光同步移动、眨眼遮罩、循环衔接、白色圆点，以及 76px 提醒面板的可读性。</p>
+      <p>喝口水节奏：p = t mod 4，g 在 0～1s 用 ease(p) 抬杯，1～2.6s 保持 1，2.6～3.6s 用 1 − ease(p − 2.6) 放下，3.6～4s 保持 0；ease 沿用余弦缓动。持杯阶段 s = sin²(2π(p − 1) / 1.6)，其余为 0，在 1.4s、2.2s 各轻啜一次，起止速度为 0。代表帧登记为 1.4s；4s 整数倍为完整握杯的停顿姿势。</p>
+      <p>喝口水杯与手：以下坐标均为身体后仰变换前的 100×100 坐标。杯身改以中心 (68.5 − 13.7g, 80 − 2.3g − 0.35s) 定位，杯宽 15、杯身高 18.4，较上一轮约放大 15%，描边仍为 2.2。杯子局部旋转 φ = −22g − 4s°，杯口朝左上靠嘴；叠加身体后仰 2.5g° 后，画面倾角为 −19.5g − 4s°，到嘴为 −19.5°，两次啜饮峰值为 −23.5°。手心取杯子局部坐标 (9.7, 2)，随杯转动：手心 = 杯中心 + (9.7cosφ − 2sinφ, 9.7sinφ + 2cosφ)。仅喝水圆手缩为 0.9 倍（宽 14.49、高 12.6，描边保持 2.2），盖住杯身右侧约三分之一，让杯沿、左壁、水面和高光露出。图层为身体 → 叶子 → 脸 → 手臂 → 杯子 → 手掌。</p>
+      <p>喝口水关键姿势：放下（0、3.6、4s）杯中心 (68.5, 80)、手心 (78.2, 82)、倾角 0°；到嘴（1、1.8、2.6s）杯中心 (54.8, 77.7)、手心约 (64.54, 75.92)、局部倾角 −22°；啜饮（1.4、2.2s）杯中心 (54.8, 77.35)、手心约 (64.40, 74.90)、局部倾角 −26°。放下时杯身底部含描边为 90.3，手掌底部含描边为 89.4，均位于身体底边 y=93 之上；手掌只从右侧轻微露出，有限播放停在 4s 仍是完整的准备喝水姿势。</p>
+      <p>喝口水手臂决策：右臂根部恢复为 (85, 74)，与远眺、转眼一致，宽 11 的根部圆端压在身体侧面轮廓上。二次曲线控制点为 (83 + 2.5g, 83 + 2.5g − 0.5s)：放下（0、3.6、4s）为 (83, 83)，到嘴（1、1.8、2.6s）为 (85.5, 85.5)，啜饮峰值（1.4、2.2s）为 (85.5, 85)。放下时控制点位于根部与手心连线的下方偏外，保留轻微肘弯；端杯时从身体右侧先向下、略向外，再向左上接到手掌，形成浅 U / 钩形，曲线相对根部与手心连线下垂约 5～6。含描边的可见外伸约 5，手臂不低过身体底边 y=93，末端仍由手掌遮住。控制点全程随同一余弦缓动 g 和连续啜饮进度 s 插值，抬杯、轻啜、放下与循环接点均无跳变。身体仍绕 (50, 93) 后仰 2.5g°；眼皮闭合进度 ease((g − 0.55) / 0.45)，闭合曲线控制点深度连续变到 5.6，复用闭眼弧线的形状。</p>
+      <p>喝口水配色与水面：杯壁 #FFFDF8，水色由 #B1DEEF 加深为柔和浅蓝 #9DD3EC，描边 #4A3428，水面高光 #FFFFFF。杯内壁先建立随杯转动的裁剪区域，再对水和短白高光反向旋转 −(φ + 2.5g)°，同时抵消杯倾角和身体后仰，使水面相对画面始终水平；填色延伸到杯底并由内壁裁剪，倾杯时也不会溢出杯身。保留暖白杯壁，不加把手、贴纸或额外阴影。</p>
+      <p>验收点：喝水可用 ?still=0、0.5、1、1.4、1.8、2.2、2.6、3.2、3.6、4 对照固定帧：0 / 4 看根部贴身体、轻微下垂肘弯、侧握和完整放下姿势；0.5 / 3.2 看肘弯随抬放平滑变化；1 / 1.4 / 1.8 / 2.2 / 2.6 看手臂先向下再向左上、可见外伸约 5 且不低过身体底边，以及杯沿贴嘴、两次额外倾杯、水平水面与裁剪、眼睛与腮红的可见部分。76px 下分别检查浅色、深色背景的肘弯、水色和描边。原动作仍检查手臂根部、闭眼弧线、远眺手眼间隙、眨眼遮罩和圆点轨迹；0 / 4 应完全一致。</p>
     </details>
   </main>
 </body>

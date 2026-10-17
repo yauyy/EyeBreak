@@ -543,6 +543,16 @@
         }
       }
     },
+    "喝口水": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sip some water"
+          }
+        }
+      }
+    },
     "四": {
       "localizations": {
         "en": {
@@ -1499,6 +1509,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Break time"
+          }
+        }
+      }
+    },
+    "起身喝几口水": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get up and sip some water"
           }
         }
       }

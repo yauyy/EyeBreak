@@ -85,7 +85,7 @@ struct DiagnosticsTests {
         #expect(!text.contains("tomatoCounts"))
         #expect(!text.contains("achievements"))
         #expect(!text.contains("unrelatedSetting"))
-        #expect(captured.enabledExercises.count == 4)
+        #expect(captured.enabledExercises.count == RestExercise.allCases.count)
         #expect(captured.workSeconds == 1200)
         #expect(captured.restSeconds == 20)
     }

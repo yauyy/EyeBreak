@@ -9,7 +9,7 @@ enum OnboardingPolicy {
     static let legacyBusinessKeys: Set<String> = [
         "workMinutes", "restSeconds", "timerSnapshot", "exerciseIndex", "reminderSound",
         "workSchedule", "tomatoCounts", "tomatoTotal", "achievements",
-        "showMenuBarTime", "showWeekStats", "showMoreSettings", "enabledExercises",
+        "showMenuBarTime", "showWeekStats", "showMoreSettings", "enabledExercises", "disabledExercises",
         "SUHasLaunchedBefore", "SUEnableAutomaticChecks", "SUAutomaticallyUpdate",
         "SULastCheckTime", "SUSkippedVersion"
     ]
