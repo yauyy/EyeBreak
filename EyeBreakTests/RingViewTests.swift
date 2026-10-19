@@ -139,6 +139,66 @@ struct RingViewTests {
         #expect(darkColor == expectedDark)
     }
 
+    @Test("隐藏圆环停止动画且完全冻结图层，重开首帧直接定位后恢复平滑")
+    func hiddenRingDoesNotUpdateLayersAndResumesWithoutAnimation() throws {
+        let view = nativeView()
+        view.update(state: state(0.5), color: .red, lineWidth: 10, reduceMotion: false, animationsAllowed: true)
+        view.update(state: state(0.45), color: .red, lineWidth: 10, reduceMotion: false, animationsAllowed: true)
+        #expect(!(view.progressLayer.animationKeys()?.isEmpty ?? true))
+
+        view.update(
+            state: state(0.45), color: .red, lineWidth: 10,
+            reduceMotion: false, animationsAllowed: true, isActive: false
+        )
+        #expect(view.progressLayer.animationKeys()?.isEmpty ?? true)
+        let color = try #require(view.progressLayer.strokeColor)
+        let pathBounds = try #require(view.progressLayer.path).boundingBox
+        let layerFrame = view.progressLayer.frame
+        let scale = view.progressLayer.contentsScale
+        view.update(
+            state: state(0.4), color: .blue, lineWidth: 20,
+            reduceMotion: false, animationsAllowed: true, isActive: false
+        )
+        view.frame.size = NSSize(width: 120, height: 120)
+        view.layout()
+        view.viewDidChangeEffectiveAppearance()
+        view.viewDidChangeBackingProperties()
+        #expect(view.progressLayer.strokeEnd == 0.45)
+        #expect(view.progressLayer.strokeColor == color)
+        #expect(view.progressLayer.lineWidth == 10)
+        #expect(view.progressLayer.path?.boundingBox == pathBounds)
+        #expect(view.progressLayer.frame == layerFrame)
+        #expect(view.progressLayer.contentsScale == scale)
+        #expect(view.progressLayer.animationKeys()?.isEmpty ?? true)
+
+        // 只漏过一秒也不能补播；下一次正常 tick 才恢复插值。
+        view.update(state: state(0.4), color: .blue, lineWidth: 10, reduceMotion: false, animationsAllowed: true)
+        #expect(view.progressLayer.strokeEnd == 0.4)
+        #expect(view.progressLayer.animationKeys()?.isEmpty ?? true)
+        view.update(state: state(0.35), color: .blue, lineWidth: 10, reduceMotion: false, animationsAllowed: true)
+        #expect(!(view.progressLayer.animationKeys()?.isEmpty ?? true))
+    }
+
+    @Test("宿主合并隐藏帧时，重新显示的代号仍禁止补播一秒动画")
+    func resumeGenerationResetsAnimationWithoutHiddenRender() {
+        let view = nativeView()
+        view.update(state: state(0.5), color: .red, lineWidth: 10, reduceMotion: false, animationsAllowed: true)
+        view.update(state: state(0.45), color: .red, lineWidth: 10, reduceMotion: false, animationsAllowed: true)
+        #expect(!(view.progressLayer.animationKeys()?.isEmpty ?? true))
+        // 不调用 isActive=false，模拟 SwiftUI 没有绘制隐藏帧便重新打开菜单。
+        view.update(
+            state: state(0.4), color: .red, lineWidth: 10,
+            reduceMotion: false, animationsAllowed: true, animationResetID: 1
+        )
+        #expect(view.progressLayer.strokeEnd == 0.4)
+        #expect(view.progressLayer.animationKeys()?.isEmpty ?? true)
+        view.update(
+            state: state(0.35), color: .red, lineWidth: 10,
+            reduceMotion: false, animationsAllowed: true, animationResetID: 1
+        )
+        #expect(!(view.progressLayer.animationKeys()?.isEmpty ?? true))
+    }
+
     @Test("ImageRenderer 的静态回退包含当前四分之一进度弧")
     func imageRendererIncludesCurrentProgress() throws {
         let renderer = ImageRenderer(content: ring(snapshot: true))

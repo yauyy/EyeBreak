@@ -44,6 +44,8 @@ struct RingView<Content: View>: View {
     var lineWidth: CGFloat = 12
     var phase: EyeBreakModel.Phase
     var duration: TimeInterval
+    var isActive = true
+    var animationResetID = 0
     @ViewBuilder var content: Content
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.ringSnapshotRendering) private var snapshotRendering
@@ -59,7 +61,8 @@ struct RingView<Content: View>: View {
             } else {
                 RingProgressView(
                     state: RingAnimationState(remaining: remaining, phase: phase, duration: duration),
-                    color: color, lineWidth: lineWidth, reduceMotion: reduceMotion
+                    color: color, lineWidth: lineWidth, reduceMotion: reduceMotion,
+                    isActive: isActive, animationResetID: animationResetID
                 )
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -74,13 +77,16 @@ private struct RingProgressView: NSViewRepresentable {
     var color: Color
     var lineWidth: CGFloat
     var reduceMotion: Bool
+    var isActive: Bool
+    var animationResetID: Int
 
     func makeNSView(context: Context) -> RingProgressNSView { RingProgressNSView() }
 
     func updateNSView(_ view: RingProgressNSView, context: Context) {
         view.update(
             state: state, color: NSColor(color), lineWidth: lineWidth,
-            reduceMotion: reduceMotion, animationsAllowed: !context.transaction.disablesAnimations
+            reduceMotion: reduceMotion, animationsAllowed: !context.transaction.disablesAnimations,
+            isActive: isActive, animationResetID: animationResetID
         )
     }
 
@@ -95,6 +101,8 @@ final class RingProgressNSView: NSView {
     private var previousState: RingAnimationState?
     private var strokeColor = NSColor.clear
     private var pathBounds = CGRect.null
+    private var isActive = true
+    private var animationResetID = 0
 
     // 翻转坐标后，-π/2 位于正上方，正向完整圆弧按屏幕顺时针绘制。
     override var isFlipped: Bool { true }
@@ -116,25 +124,45 @@ final class RingProgressNSView: NSView {
 
     override func layout() {
         super.layout()
+        guard isActive else { return }
         updatePath()
     }
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
-        withoutImplicitAnimations {
-            progressLayer.contentsScale = window?.backingScaleFactor ?? 2
-        }
+        guard isActive else { return }
+        updateBackingScale()
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
+        guard isActive else { return }
         updateColor()
     }
 
     func update(
         state: RingAnimationState, color: NSColor, lineWidth: CGFloat,
-        reduceMotion: Bool, animationsAllowed: Bool
+        reduceMotion: Bool, animationsAllowed: Bool, isActive: Bool = true, animationResetID: Int = 0
     ) {
+        guard isActive else {
+            if self.isActive {
+                self.isActive = false
+                previousState = nil
+                progressLayer.removeAllAnimations()
+            }
+            return
+        }
+        // 重开菜单的第一帧直接采用最新进度，即使只漏过一秒，也不补播隐藏期间的动画。
+        if !self.isActive {
+            self.isActive = true
+            previousState = nil
+        }
+        // 宿主可能合并隐藏期间的 SwiftUI 更新；重新打开的代号仍保证首帧不补播。
+        if self.animationResetID != animationResetID {
+            self.animationResetID = animationResetID
+            previousState = nil
+        }
+        updateBackingScale()
         strokeColor = color
         updateColor()
         withoutImplicitAnimations { progressLayer.lineWidth = lineWidth }
@@ -183,6 +211,12 @@ final class RingProgressNSView: NSView {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             withoutImplicitAnimations { progressLayer.strokeColor = strokeColor.cgColor }
         }
+    }
+
+    private func updateBackingScale() {
+        let scale = window?.backingScaleFactor ?? 2
+        guard progressLayer.contentsScale != scale else { return }
+        withoutImplicitAnimations { progressLayer.contentsScale = scale }
     }
 
     private func withoutImplicitAnimations(_ changes: () -> Void) {

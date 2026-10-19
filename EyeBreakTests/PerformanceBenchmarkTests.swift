@@ -107,6 +107,89 @@ struct PerformanceBenchmarkTests {
         try await measureMenuBarLabel(showTime: true)
     }
 
+    @Test(
+        "设置和菜单打开后关闭，隐藏窗口不随专注计时持续刷新",
+        .enabled(if: PerformanceEnvironment.isEnabled, "设置 EYEBREAK_PERF=1 后才运行性能基准")
+    )
+    func measureClosedScenes() async throws {
+        // 两次测量都保留真实隐藏窗口并按秒推进模型，直接比较进程开销，不扣除基线。
+        let baseline = try await measureHiddenWindows("空白隐藏窗口、专注中", opensContent: false)
+        report(baseline)
+        let sample = try await measureHiddenWindows("设置和菜单打开后关闭、专注中", opensContent: true)
+        report(sample)
+        print("EYEBREAK_PERF 隐藏窗口相对空白基线增加 \(String(format: "%.2f", sample.percent - baseline.percent)) 个百分点")
+        #expect(sample.percent <= 0.5, "隐藏窗口 CPU 回归：\(sample.description)，空白基线 \(baseline.description)，上限 0.5%")
+    }
+
+    private func measureHiddenWindows(_ name: String, opensContent: Bool) async throws -> PerformanceSample {
+        let screen = try #require(NSScreen.main, "性能基准需要可用的图形会话")
+        let fixture = try PerformanceFixture()
+        defer { fixture.cleanUp() }
+        let launchAtLogin = LaunchAtLogin(refreshesSystemStatus: false)
+        let sounds = ReminderSounds(choice: .off)
+        let appearance = AppearanceSettings(defaults: fixture.defaults, appliesToApplication: false)
+        let language = LanguageSettings(defaults: fixture.defaults, domainName: fixture.suiteName)
+        let settings: SettingsWindowController? = opensContent ? SettingsWindowController(
+            model: fixture.model, launchAtLogin: launchAtLogin, stats: fixture.stats,
+            sounds: sounds, updates: fixture.updates, schedule: fixture.schedule,
+            appearance: appearance, language: language, onReplayOnboarding: {}
+        ) : nil
+        let content: AnyView
+        weak var observedMenuWindow: NSWindow?
+        if opensContent {
+            content = AnyView(MenuContentView(
+                model: fixture.model, launchAtLogin: launchAtLogin, stats: fixture.stats,
+                sounds: sounds, updates: fixture.updates, schedule: fixture.schedule,
+                openSettings: { _ in }, menuWindowChanged: { observedMenuWindow = $0 }
+            ).defaultAppStorage(fixture.defaults))
+        } else {
+            content = AnyView(Color.clear.frame(width: 280, height: 400))
+        }
+        let host = NSHostingView(rootView: content)
+        host.sizingOptions = [.minSize, .intrinsicContentSize, .maxSize]
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 280, height: 400),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+        window.ignoresMouseEvents = true
+        window.contentView = host
+        defer {
+            settings?.close()
+            host.rootView = AnyView(EmptyView())
+            window.contentView = nil
+            window.close()
+        }
+
+        settings?.show(section: .rest)
+        // 先真正显示设置页，确保测到曾构建过 SwiftUI 树的关闭场景。
+        if let settings {
+            try await Task.sleep(for: .seconds(0.25))
+            #expect(settings.window?.isVisible == true)
+            settings.close()
+            #expect(settings.window?.isVisible == false)
+            #expect(settings.window?.contentViewController == nil)
+        }
+        let visible = screen.visibleFrame
+        window.setFrameOrigin(NSPoint(x: visible.midX - 140, y: visible.midY - 200))
+        window.orderFrontRegardless()
+        try await Task.sleep(for: .seconds(1))
+        #expect(window.isVisible)
+        #expect(window.occlusionState.contains(.visible))
+        if opensContent { #expect(observedMenuWindow === window) }
+        window.orderOut(nil)
+        // 菜单关闭只隐藏外壳；故意保留宿主与视图树，覆盖 MenuBarExtra(.window) 的生命周期。
+        try await Task.sleep(for: .seconds(1))
+        #expect(!window.isVisible)
+        #expect(!window.occlusionState.contains(.visible))
+        #expect(host.window === window)
+        let sample = try await measureCPU(name, seconds: 10, tick: fixture.advanceOneSecond)
+        #expect(fixture.model.phase == .working)
+        #expect(fixture.model.remainingSeconds == 1190)
+        return sample
+    }
+
     private func measureMenu() async throws {
         let fixture = try PerformanceFixture()
         defer { fixture.cleanUp() }
@@ -209,6 +292,10 @@ struct PerformanceBenchmarkTests {
         // 异步让出主执行器，允许 AppKit 提交绘制以及番茄仔的一次性停止任务按时执行。
         try await Task.sleep(for: .seconds(warmup))
 
+        return try await measureCPU(name, seconds: seconds, tick: tick)
+    }
+
+    private func measureCPU(_ name: String, seconds: Int, tick: () -> Void) async throws -> PerformanceSample {
         let clock = ContinuousClock()
         let wallStart = clock.now
         let cpuStart = try processCPUSeconds()

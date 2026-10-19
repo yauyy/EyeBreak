@@ -54,13 +54,16 @@ private final class SettingsWindow: NSWindow {
     }
 }
 
-/// AppDelegate 持有唯一实例；关闭时保留窗口和当前位置。
+/// AppDelegate 持有唯一实例；关闭时只保留窗口位置和分区，卸载整个 SwiftUI 内容。
 @MainActor
-final class SettingsWindowController: NSWindowController {
-    private let presentation = SettingsPresentation()
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+    private let presentation: SettingsPresentation
     private let launchAtLogin: LaunchAtLogin
     private let stats: TomatoStats
+    private let language: LanguageSettings
+    private let makeContent: () -> NSViewController
     private var hasShown = false
+    private var closedFrame: NSRect?
 
     init(
         model: EyeBreakModel,
@@ -75,6 +78,18 @@ final class SettingsWindowController: NSWindowController {
     ) {
         self.launchAtLogin = launchAtLogin
         self.stats = stats
+        self.language = language
+        let presentation = SettingsPresentation()
+        self.presentation = presentation
+        // 工厂只保留操作入口和设置数据，不提前创建或缓存视图树。
+        makeContent = {
+            NSHostingController(rootView: SettingsContentView(
+                model: model, launchAtLogin: launchAtLogin, stats: stats,
+                sounds: sounds, updates: updates, schedule: schedule,
+                appearance: appearance, language: language, presentation: presentation,
+                onReplayOnboarding: onReplayOnboarding
+            ))
+        }
         let window = SettingsWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 480),
             styleMask: [.titled, .closable],
@@ -84,18 +99,7 @@ final class SettingsWindowController: NSWindowController {
         super.init(window: window)
         window.title = String(localized: "EyeBreak 设置")
         window.isReleasedWhenClosed = false
-        window.contentViewController = NSHostingController(rootView: SettingsContentView(
-            model: model,
-            launchAtLogin: launchAtLogin,
-            stats: stats,
-            sounds: sounds,
-            updates: updates,
-            schedule: schedule,
-            appearance: appearance,
-            language: language,
-            presentation: presentation,
-            onReplayOnboarding: onReplayOnboarding
-        ))
+        window.delegate = self
         window.setContentSize(NSSize(width: 560, height: 480))
         window.onEscape = { [weak self] in
             guard let self else { return }
@@ -115,6 +119,13 @@ final class SettingsWindowController: NSWindowController {
         if let section { presentation.section = section }
         launchAtLogin.refresh()
         stats.refresh()
+        language.refreshSystemLanguage()
+        if window.contentViewController == nil {
+            // 重建内容可能改变约束，保留关闭前的完整窗口矩形，重开不重新居中。
+            let frame = closedFrame ?? window.frame
+            window.contentViewController = makeContent()
+            window.setFrame(frame, display: false)
+        }
         NSApp.activate(ignoringOtherApps: true)
         if !hasShown {
             window.center()
@@ -123,10 +134,19 @@ final class SettingsWindowController: NSWindowController {
         showWindow(nil)
         window.makeKeyAndOrderFront(nil)
     }
+
+    func windowWillClose(_ notification: Notification) {
+        // ⌘W、Esc、关闭按钮以及控制器 close() 都经过同一个释放入口。
+        closedFrame = window?.frame
+        window?.contentViewController = nil
+        window?.contentView = nil
+        presentation.diagnosticText = nil
+    }
 }
 
 struct SettingsContentView: View {
-    @ObservedObject var model: EyeBreakModel
+    // 仅在点击诊断按钮时读取快照，计时变化不应使整个设置页失效。
+    let model: EyeBreakModel
     @ObservedObject var launchAtLogin: LaunchAtLogin
     @ObservedObject var stats: TomatoStats
     @ObservedObject var sounds: ReminderSounds
@@ -212,7 +232,7 @@ struct SettingsContentView: View {
     private var sectionContent: some View {
         switch presentation.section {
         case .general: generalSettings
-        case .rest: restSettings
+        case .rest: RestExerciseSettings(model: model).settingsCard()
         case .schedule: scheduleSettings
         case .achievements: AchievementsView(stats: stats)
         case .about: aboutSettings
@@ -283,31 +303,6 @@ struct SettingsContentView: View {
             if updates.isConfigured {
                 Toggle(isOn: $updates.automaticChecks) { settingTitle("自动检查更新") }
                     .toggleStyle(CuteToggleStyle())
-            }
-        }
-        .settingsCard()
-    }
-
-    private var restSettings: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            settingTitle("启用的动作")
-            ForEach(RestExercise.allCases, id: \.self) { exercise in
-                let enabled = model.enabledExercises.contains(exercise)
-                Toggle(isOn: Binding(
-                    get: { model.enabledExercises.contains(exercise) },
-                    set: { model.setExercise(exercise, enabled: $0) }
-                )) {
-                    Text(verbatim: exercise.title)
-                        .font(Theme.font(14, .medium))
-                        .foregroundStyle(Theme.ink)
-                }
-                .toggleStyle(CuteToggleStyle())
-                .disabled(enabled && model.enabledExercises.count == 1)
-            }
-            if model.enabledExercises.count == 1 {
-                Text("至少保留一个动作")
-                    .font(Theme.font(12))
-                    .foregroundStyle(Theme.inkSoft)
             }
         }
         .settingsCard()
@@ -397,6 +392,63 @@ struct SettingsContentView: View {
         Text(title)
             .font(Theme.font(14, .medium))
             .foregroundStyle(Theme.ink)
+    }
+}
+
+/// 只发布动作集合；即使设置页可见，也不订阅每秒变化的计时状态。
+@MainActor
+final class SettingsExerciseSelection: ObservableObject {
+    @Published private(set) var enabledExercises: Set<RestExercise>
+    private let model: EyeBreakModel
+    private var subscription: AnyCancellable?
+
+    init(model: EyeBreakModel) {
+        self.model = model
+        enabledExercises = model.enabledExercises
+        subscription = model.$enabledExercises.removeDuplicates().sink { [weak self] enabled in
+            MainActor.assumeIsolated {
+                guard let self, self.enabledExercises != enabled else { return }
+                self.enabledExercises = enabled
+            }
+        }
+    }
+
+    func setExercise(_ exercise: RestExercise, enabled: Bool) {
+        model.setExercise(exercise, enabled: enabled)
+    }
+}
+
+private struct RestExerciseSettings: View {
+    @StateObject private var selection: SettingsExerciseSelection
+
+    init(model: EyeBreakModel) {
+        _selection = StateObject(wrappedValue: SettingsExerciseSelection(model: model))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("启用的动作")
+                .font(Theme.font(14, .medium))
+                .foregroundStyle(Theme.ink)
+            ForEach(RestExercise.allCases, id: \.self) { exercise in
+                let enabled = selection.enabledExercises.contains(exercise)
+                Toggle(isOn: Binding(
+                    get: { selection.enabledExercises.contains(exercise) },
+                    set: { selection.setExercise(exercise, enabled: $0) }
+                )) {
+                    Text(verbatim: exercise.title)
+                        .font(Theme.font(14, .medium))
+                        .foregroundStyle(Theme.ink)
+                }
+                .toggleStyle(CuteToggleStyle())
+                .disabled(enabled && selection.enabledExercises.count == 1)
+            }
+            if selection.enabledExercises.count == 1 {
+                Text("至少保留一个动作")
+                    .font(Theme.font(12))
+                    .foregroundStyle(Theme.inkSoft)
+            }
+        }
     }
 }
 

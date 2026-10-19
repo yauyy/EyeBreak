@@ -5,6 +5,57 @@ import Testing
 
 @MainActor
 struct PerformanceObservationTests {
+    @Test("隐藏菜单取消秒数订阅，重开立即读取最新一帧")
+    func hiddenMenuFreezesCountdownInvalidations() {
+        let fixture = Fixture()
+        fixture.model.start()
+        let countdown = MenuCountdownState(model: fixture.model, isVisible: true)
+        var updates = 0
+        let subscription = countdown.objectWillChange.sink { updates += 1 }
+        defer { subscription.cancel() }
+
+        fixture.advance(1)
+        #expect(updates == 1)
+        #expect(countdown.snapshot.remainingSeconds == 1199)
+        countdown.setVisible(false)
+        let frozen = countdown.snapshot
+        updates = 0
+        for _ in 0..<60 { fixture.advance(1) }
+        #expect(updates == 0)
+        #expect(countdown.snapshot == frozen)
+        #expect(fixture.model.remainingSeconds == 1139)
+
+        countdown.setVisible(true)
+        #expect(countdown.snapshot.remainingSeconds == 1139)
+        updates = 0
+        fixture.advance(1)
+        #expect(updates == 1)
+        #expect(countdown.snapshot.remainingSeconds == 1138)
+
+        countdown.setVisible(false)
+        updates = 0
+        fixture.advance(1)
+        #expect(updates == 0)
+    }
+
+    @Test("菜单初始不可见时不观察模型，转发器也能随视图释放")
+    func hiddenMenuStartsUnsubscribedAndReleasesObserver() {
+        let fixture = Fixture()
+        var countdown: MenuCountdownState? = MenuCountdownState(model: fixture.model, isVisible: false)
+        weak let weakCountdown = countdown
+        var updates = 0
+        let subscription = countdown?.objectWillChange.sink { updates += 1 }
+        fixture.model.start()
+        fixture.advance(1)
+        #expect(updates == 0)
+        countdown?.setVisible(true)
+        #expect(countdown?.snapshot.phase == .working)
+        #expect(countdown?.snapshot.remainingSeconds == 1199)
+        subscription?.cancel()
+        countdown = nil
+        #expect(weakCountdown == nil)
+    }
+
     @Test("秒级计时不通知菜单主体或面板静态内容")
     func countdownDoesNotInvalidateStaticContent() {
         let fixture = Fixture()

@@ -42,10 +42,14 @@ enum AppearancePreference {
 
 @MainActor
 final class AppearanceSettings: ObservableObject {
-    @Published var mode: AppearanceMode {
-        didSet {
-            guard mode != oldValue else { return }
-            AppearancePreference.write(mode, to: defaults)
+    @Published private var currentMode: AppearanceMode
+
+    var mode: AppearanceMode {
+        get { currentMode }
+        set {
+            guard newValue != currentMode else { return }
+            currentMode = newValue
+            AppearancePreference.write(newValue, to: defaults)
             if appliesToApplication { apply() }
         }
     }
@@ -54,23 +58,26 @@ final class AppearanceSettings: ObservableObject {
     private let appliesToApplication: Bool
     private var preferenceChanges: AnyCancellable?
 
-    init(defaults: UserDefaults = .standard, appliesToApplication: Bool = true) {
+    init(
+        defaults: UserDefaults = .standard,
+        appliesToApplication: Bool = true,
+        notificationCenter: NotificationCenter = .default
+    ) {
         self.defaults = defaults
         self.appliesToApplication = appliesToApplication
-        mode = AppearancePreference.read(from: defaults)
+        currentMode = AppearancePreference.read(from: defaults)
         // AppDelegate 创建其他状态对象、窗口和面板之前就确定外观。
-        if appliesToApplication {
-            apply()
-            preferenceChanges = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-                .receive(on: RunLoop.main)
-                .sink { [weak self] _ in
-                    MainActor.assumeIsolated {
-                        guard let self else { return }
-                        let saved = AppearancePreference.read(from: self.defaults)
-                        if self.mode != saved { self.mode = saved }
-                    }
+        if appliesToApplication { apply() }
+        preferenceChanges = notificationCenter.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    // 计时快照和统计也会写偏好，只比较外观这一项，未变化时不发布。
+                    let saved = AppearancePreference.read(from: self.defaults)
+                    if self.mode != saved { self.mode = saved }
                 }
-        }
+            }
     }
 
     private func apply() {
@@ -115,8 +122,22 @@ enum LanguagePreference {
 
     /// 不能使用 stringArray(forKey:)：它还会查全局域、注册默认值和启动参数。
     static func read(from defaults: UserDefaults, domainName: String = appDomain) -> LanguageChoice {
-        guard let value = defaults.persistentDomain(forName: domainName)?[key] else { return .system }
-        let languages = value as? [String] ?? []
+        choice(for: storedLanguages(domainName: domainName))
+    }
+
+    /// CFPreferences 按域读取单键，既不合并全局/注册域，也不复制整份计时和统计偏好。
+    static func storedLanguages(domainName: String) -> [String]? {
+        let applicationID = domainName == UserDefaults.globalDomain
+            ? kCFPreferencesAnyApplication : domainName as CFString
+        guard let value = CFPreferencesCopyValue(
+            key as CFString, applicationID,
+            kCFPreferencesCurrentUser, kCFPreferencesAnyHost
+        ) else { return nil }
+        return value as? [String] ?? []
+    }
+
+    static func choice(for storedLanguages: [String]?) -> LanguageChoice {
+        guard let languages = storedLanguages else { return .system }
         return effectiveLanguage(for: languages) == "en" ? .english : .simplifiedChinese
     }
 
@@ -140,21 +161,28 @@ enum LanguagePreference {
 
     /// 独立读取全局语言顺序，避免 App 自己的 AppleLanguages 覆盖「跟随系统」的目标语言。
     static func systemLanguages(from defaults: UserDefaults = .standard) -> [String] {
-        defaults.persistentDomain(forName: UserDefaults.globalDomain)?[key] as? [String] ?? ["zh-Hans"]
+        storedLanguages(domainName: UserDefaults.globalDomain) ?? ["zh-Hans"]
     }
 }
 
 @MainActor
 final class LanguageSettings: ObservableObject {
-    @Published var choice: LanguageChoice {
-        didSet {
-            guard choice != oldValue else { return }
-            LanguagePreference.write(choice, to: defaults)
-            reopenError = nil
+    @Published private var currentChoice: LanguageChoice
+
+    var choice: LanguageChoice {
+        get { currentChoice }
+        set {
+            guard newValue != currentChoice else { return }
+            currentChoice = newValue
+            storedLanguages = newValue.languageCode.map { [$0] }
+            LanguagePreference.write(newValue, to: defaults)
+            if reopenError != nil { reopenError = nil }
+            refreshSystemLanguage()
         }
     }
     @Published private(set) var isReopening = false
     @Published private(set) var reopenError: String?
+    @Published private(set) var restartRequired: Bool
     /// AppDelegate 在打开新实例前保存计时快照；不提前 shutdown，打开失败后原进程继续工作。
     var beforeReopen: () -> Void = {}
 
@@ -162,34 +190,47 @@ final class LanguageSettings: ObservableObject {
     private let domainName: String
     private let runningLanguage: String
     private let systemLanguages: () -> [String]
+    private var storedLanguages: [String]?
     private var preferenceChanges: AnyCancellable?
-
-    var restartRequired: Bool {
-        LanguagePreference.requiresRestart(choice, runningLanguage: runningLanguage, systemLanguages: systemLanguages())
-    }
 
     init(
         defaults: UserDefaults = .standard,
         domainName: String = LanguagePreference.appDomain,
         runningLanguage: String = Bundle.main.preferredLocalizations.first ?? "zh-Hans",
-        systemLanguages: @escaping () -> [String] = { LanguagePreference.systemLanguages() }
+        systemLanguages: @escaping () -> [String] = { LanguagePreference.systemLanguages() },
+        notificationCenter: NotificationCenter = .default
     ) {
         self.defaults = defaults
         self.domainName = domainName
         self.runningLanguage = runningLanguage
         self.systemLanguages = systemLanguages
-        choice = LanguagePreference.read(from: defaults, domainName: domainName)
-        preferenceChanges = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+        let stored = LanguagePreference.storedLanguages(domainName: domainName)
+        storedLanguages = stored
+        let initialChoice = LanguagePreference.choice(for: stored)
+        currentChoice = initialChoice
+        restartRequired = LanguagePreference.requiresRestart(
+            initialChoice, runningLanguage: runningLanguage, systemLanguages: systemLanguages()
+        )
+        preferenceChanges = notificationCenter.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 MainActor.assumeIsolated {
                     guard let self else { return }
-                    let saved = LanguagePreference.read(from: self.defaults, domainName: domainName)
+                    let stored = LanguagePreference.storedLanguages(domainName: self.domainName)
+                    guard stored != self.storedLanguages else { return }
+                    self.storedLanguages = stored
+                    let saved = LanguagePreference.choice(for: stored)
                     if self.choice != saved { self.choice = saved }
-                    // 系统语言改变而 App 选项未变时，待生效提示也需要重新计算。
-                    self.objectWillChange.send()
                 }
             }
+    }
+
+    /// 设置窗口显示时重算系统语言提示；普通偏好写入不读取全局语言，也不触发视图刷新。
+    func refreshSystemLanguage() {
+        let required = LanguagePreference.requiresRestart(
+            choice, runningLanguage: runningLanguage, systemLanguages: systemLanguages()
+        )
+        if restartRequired != required { restartRequired = required }
     }
 
     func reopen() {

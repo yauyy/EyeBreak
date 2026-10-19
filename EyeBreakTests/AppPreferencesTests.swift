@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import Testing
 @testable import EyeBreak
@@ -12,6 +13,13 @@ private struct PreferenceFixture {
     }
 
     func cleanUp() { defaults.removePersistentDomain(forName: domainName) }
+}
+
+@MainActor
+private func deliverPreferenceChange(_ center: NotificationCenter, defaults: UserDefaults) {
+    center.post(name: UserDefaults.didChangeNotification, object: defaults)
+    // 生产订阅在主 RunLoop 接收通知，测试也走同一条异步交付路径。
+    RunLoop.current.run(until: Date().addingTimeInterval(0.02))
 }
 
 struct AppearancePreferenceTests {
@@ -50,6 +58,32 @@ struct AppearancePreferenceTests {
         #expect(AppearancePreference.read(from: fixture.defaults) == .dark)
         settings.mode = .system
         #expect(AppearancePreference.read(from: fixture.defaults) == .system)
+    }
+
+    @MainActor
+    @Test("外观监听忽略无关键和重复通知，只发布实际外观变更")
+    func publishesOnlyChangedAppearancePreference() throws {
+        let fixture = try PreferenceFixture()
+        defer { fixture.cleanUp() }
+        let center = NotificationCenter()
+        let settings = AppearanceSettings(
+            defaults: fixture.defaults, appliesToApplication: false, notificationCenter: center
+        )
+        var updates = 0
+        let subscription = settings.objectWillChange.sink { updates += 1 }
+        defer { subscription.cancel() }
+
+        settings.mode = settings.mode
+        fixture.defaults.set(1199, forKey: "remainingSeconds")
+        deliverPreferenceChange(center, defaults: fixture.defaults)
+        #expect(updates == 0)
+
+        AppearancePreference.write(.dark, to: fixture.defaults)
+        deliverPreferenceChange(center, defaults: fixture.defaults)
+        #expect(settings.mode == .dark)
+        #expect(updates == 1)
+        deliverPreferenceChange(center, defaults: fixture.defaults)
+        #expect(updates == 1)
     }
 }
 
@@ -126,6 +160,93 @@ struct LanguagePreferenceTests {
         settings.choice = .system
         #expect(!settings.restartRequired)
         #expect(fixture.defaults.persistentDomain(forName: fixture.domainName)?[LanguagePreference.key] == nil)
+    }
+
+    @MainActor
+    @Test("语言监听忽略计时和统计写入，不重新读取系统语言或发布变更")
+    func ignoresUnrelatedPreferenceNotifications() throws {
+        let fixture = try PreferenceFixture()
+        defer { fixture.cleanUp() }
+        let center = NotificationCenter()
+        var systemLanguageReads = 0
+        let settings = LanguageSettings(
+            defaults: fixture.defaults, domainName: fixture.domainName,
+            runningLanguage: "zh-Hans", systemLanguages: {
+                systemLanguageReads += 1
+                return ["zh-Hans"]
+            }, notificationCenter: center
+        )
+        var updates = 0
+        let subscription = settings.objectWillChange.sink { updates += 1 }
+        defer { subscription.cancel() }
+        let initialReads = systemLanguageReads
+
+        settings.choice = settings.choice
+        fixture.defaults.set(1199, forKey: "remainingSeconds")
+        fixture.defaults.set(42, forKey: "tomatoTotal")
+        deliverPreferenceChange(center, defaults: fixture.defaults)
+        deliverPreferenceChange(center, defaults: fixture.defaults)
+
+        #expect(updates == 0)
+        #expect(systemLanguageReads == initialReads)
+        #expect(settings.choice == .system)
+        #expect(!settings.restartRequired)
+    }
+
+    @MainActor
+    @Test("外部语言偏好实际改变才更新，重复或同一有效语言不会发布")
+    func publishesOnlyChangedLanguagePreference() throws {
+        let fixture = try PreferenceFixture()
+        defer { fixture.cleanUp() }
+        let center = NotificationCenter()
+        let settings = LanguageSettings(
+            defaults: fixture.defaults, domainName: fixture.domainName,
+            runningLanguage: "zh-Hans", systemLanguages: { ["zh-Hans"] },
+            notificationCenter: center
+        )
+        var updates = 0
+        let subscription = settings.objectWillChange.sink { updates += 1 }
+        defer { subscription.cancel() }
+
+        fixture.defaults.set(["en-US"], forKey: LanguagePreference.key)
+        deliverPreferenceChange(center, defaults: fixture.defaults)
+        #expect(settings.choice == .english)
+        #expect(settings.restartRequired)
+        #expect(updates > 0)
+        let changedUpdates = updates
+        deliverPreferenceChange(center, defaults: fixture.defaults)
+        fixture.defaults.set(["en-GB"], forKey: LanguagePreference.key)
+        deliverPreferenceChange(center, defaults: fixture.defaults)
+        #expect(updates == changedUpdates)
+    }
+
+    @MainActor
+    @Test("显示设置时刷新系统语言，仅待生效提示改变才发布")
+    func refreshesSystemLanguageHintOnlyWhenChanged() throws {
+        let fixture = try PreferenceFixture()
+        defer { fixture.cleanUp() }
+        var languages = ["zh-Hans"]
+        let settings = LanguageSettings(
+            defaults: fixture.defaults, domainName: fixture.domainName,
+            runningLanguage: "zh-Hans", systemLanguages: { languages }
+        )
+        var updates = 0
+        let subscription = settings.objectWillChange.sink { updates += 1 }
+        defer { subscription.cancel() }
+
+        settings.refreshSystemLanguage()
+        #expect(updates == 0)
+        languages = ["en-US", "zh-Hans"]
+        settings.refreshSystemLanguage()
+        #expect(settings.restartRequired)
+        #expect(updates == 1)
+        languages = ["en-GB", "zh-Hans"]
+        settings.refreshSystemLanguage()
+        #expect(updates == 1)
+        languages = ["zh-Hans", "en"]
+        settings.refreshSystemLanguage()
+        #expect(!settings.restartRequired)
+        #expect(updates == 2)
     }
 
     @MainActor

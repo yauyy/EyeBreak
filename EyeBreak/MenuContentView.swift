@@ -17,11 +17,13 @@ struct MenuContentView: View {
     @AppStorage(EyeBreakConfig.showWeekStatsKey) private var showWeekStats = false
     @State private var naturalHeight: CGFloat?
     @State private var screenHeight: CGFloat = .greatestFiniteMagnitude
+    @StateObject private var visibility = MenuWindowVisibility()
 
     var body: some View {
         ScrollView(.vertical) {
             MenuBody(model: model, stats: stats, updates: updates, schedule: schedule,
-                     showWeekStats: $showWeekStats, openSettings: openSettings)
+                     showWeekStats: $showWeekStats, openSettings: openSettings,
+                     windowVisibility: visibility)
                 // 先让内容按 280 点宽度自由排版，再用外壳限制高度。
                 .frame(width: 280)
                 .fixedSize(horizontal: false, vertical: true)
@@ -37,6 +39,7 @@ struct MenuContentView: View {
         .frame(width: 280, height: naturalHeight.map { min($0, heightLimitOverride ?? screenHeight) })
         .background(Theme.cream)
         .background(MenuWindowReader { window in
+            visibility.track(window)
             menuWindowChanged(window)
             if let screen = window?.screen {
                 screenHeight = max(1, screen.visibleFrame.height - 40)
@@ -58,6 +61,7 @@ struct MenuBody: View {
     @ObservedObject var schedule: WorkScheduleSettings
     @Binding var showWeekStats: Bool
     var openSettings: (Bool) -> Void
+    var windowVisibility: MenuWindowVisibility?
     #if DEBUG
     // 两条时长提示在真实状态下互斥，测试合成最坏排版时同时显示。
     var showsAllPendingHintsForTesting = false
@@ -66,7 +70,7 @@ struct MenuBody: View {
     init(
         model: EyeBreakModel, stats: TomatoStats, updates: AppUpdater,
         schedule: WorkScheduleSettings, showWeekStats: Binding<Bool>,
-        openSettings: @escaping (Bool) -> Void
+        openSettings: @escaping (Bool) -> Void, windowVisibility: MenuWindowVisibility? = nil
     ) {
         _modelChanges = StateObject(wrappedValue: MenuModelChanges(model: model))
         self.stats = stats
@@ -74,6 +78,7 @@ struct MenuBody: View {
         self.schedule = schedule
         _showWeekStats = showWeekStats
         self.openSettings = openSettings
+        self.windowVisibility = windowVisibility
     }
 
     #if DEBUG
@@ -95,7 +100,7 @@ struct MenuBody: View {
                 UpdateBanner(version: version, update: updates.checkForUpdates)
             }
             VStack(spacing: 12) {
-                MenuCountdownRing(model: model, schedule: schedule)
+                MenuCountdownRing(model: model, schedule: schedule, windowVisibility: windowVisibility)
                 Button { showWeekStats.toggle() } label: {
                     HStack(spacing: 6) {
                         TomatoTally(today: stats.today, streak: stats.streak)
@@ -256,30 +261,104 @@ final class MenuModelChanges: ObservableObject {
     }
 }
 
+/// 菜单隐藏后取消整个模型订阅，并保留最后一帧；菜单栏标签仍使用自己的秒数订阅。
+@MainActor
+final class MenuCountdownState: ObservableObject {
+    struct Snapshot: Equatable {
+        let phase: EyeBreakModel.Phase
+        let remainingSeconds: Int
+        let remaining: Double
+        let duration: TimeInterval
+        let workInterval: TimeInterval
+        let deferReason: EyeBreakModel.DeferReason?
+        let isSnoozing: Bool
+
+        @MainActor init(model: EyeBreakModel) {
+            phase = model.phase
+            remainingSeconds = model.remainingSeconds
+            remaining = 1 - model.progress
+            duration = model.phase == .resting ? model.currentBreakDuration : model.currentRoundTotal
+            workInterval = model.workInterval
+            deferReason = model.deferReason
+            isSnoozing = model.isSnoozing
+        }
+    }
+
+    @Published private(set) var isVisible: Bool
+    private(set) var activationID = 0
+    private let model: EyeBreakModel
+    private var frozenSnapshot: Snapshot
+    private var subscription: AnyCancellable?
+    private var visibilitySubscription: AnyCancellable?
+
+    var snapshot: Snapshot { isVisible ? Snapshot(model: model) : frozenSnapshot }
+
+    init(model: EyeBreakModel, isVisible: Bool) {
+        self.model = model
+        self.isVisible = isVisible
+        frozenSnapshot = Snapshot(model: model)
+        if isVisible { observeModel() }
+    }
+
+    convenience init(model: EyeBreakModel, windowVisibility: MenuWindowVisibility?) {
+        self.init(model: model, isVisible: windowVisibility?.isVisible ?? true)
+        // 直接响应宿主通知，不依赖隐藏 SwiftUI 视图是否及时执行 body 或 onChange。
+        visibilitySubscription = windowVisibility?.$isVisible.removeDuplicates().sink { [weak self] visible in
+            MainActor.assumeIsolated { self?.setVisible(visible) }
+        }
+    }
+
+    func setVisible(_ visible: Bool) {
+        guard isVisible != visible else { return }
+        if !visible {
+            frozenSnapshot = Snapshot(model: model)
+            subscription = nil
+        } else {
+            activationID &+= 1
+        }
+        isVisible = visible
+        if visible { observeModel() }
+    }
+
+    private func observeModel() {
+        // 转发 willChange，让 SwiftUI 在本轮修改完成后读取一致快照，避免读取 @Published 的旧值。
+        subscription = model.objectWillChange.sink { [weak self] in
+            MainActor.assumeIsolated { self?.objectWillChange.send() }
+        }
+    }
+}
+
 /// 每秒变化限制在固定尺寸的圆环和文字内，不重建菜单操作、统计或高度测量外壳。
 private struct MenuCountdownRing: View {
-    @ObservedObject var model: EyeBreakModel
+    @StateObject private var countdown: MenuCountdownState
     @ObservedObject var schedule: WorkScheduleSettings
+
+    init(model: EyeBreakModel, schedule: WorkScheduleSettings, windowVisibility: MenuWindowVisibility?) {
+        _countdown = StateObject(wrappedValue: MenuCountdownState(model: model, windowVisibility: windowVisibility))
+        self.schedule = schedule
+    }
+
+    private var snapshot: MenuCountdownState.Snapshot { countdown.snapshot }
 
     var body: some View {
         RingView(
-            remaining: 1 - model.progress, color: phaseColor, phase: model.phase,
-            duration: model.phase == .resting ? model.currentBreakDuration : model.currentRoundTotal
+            remaining: snapshot.remaining, color: phaseColor, phase: snapshot.phase,
+            duration: snapshot.duration, isActive: countdown.isVisible, animationResetID: countdown.activationID
         ) {
             VStack(spacing: 2) {
-                Text(model.formattedRemaining)
+                Text(String(format: "%02d:%02d", snapshot.remainingSeconds / 60, snapshot.remainingSeconds % 60))
                     .font(Theme.font(36, .bold))
                     .monospacedDigit()
                     .foregroundStyle(Theme.ink)
                 Text(status)
                     .font(Theme.font(13, .medium))
                     .foregroundStyle(statusColor)
-                if model.phase == .offHours {
+                if snapshot.phase == .offHours {
                     Text(verbatim: schedule.schedule.rangeText + (schedule.schedule.weekdaysOnly ? " · " + String(localized: "工作日") : ""))
                         .font(Theme.font(11))
                         .foregroundStyle(Theme.inkSoft)
                 }
-                if let test = EyeBreakConfig.testWorkInterval, model.workInterval == test {
+                if let test = EyeBreakConfig.testWorkInterval, snapshot.workInterval == test {
                     Text("测试 \(Int(test)) 秒")
                         .font(Theme.font(11))
                         .foregroundStyle(Theme.inkSoft)
@@ -288,20 +367,20 @@ private struct MenuCountdownRing: View {
         }
         .frame(width: 156, height: 156)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(status)，剩余 \(model.remainingSeconds / 60) 分 \(model.remainingSeconds % 60) 秒"))
+        .accessibilityLabel(Text("\(status)，剩余 \(snapshot.remainingSeconds / 60) 分 \(snapshot.remainingSeconds % 60) 秒"))
     }
 
     private var status: String {
-        switch model.phase {
+        switch snapshot.phase {
         case .idle: return String(localized: "准备好了吗")
         case .working:
-            switch model.deferReason {
+            switch snapshot.deferReason {
             case .meeting: return String(localized: "会议结束后提醒")
             case .fullscreen: return String(localized: "退出全屏后提醒")
             case .focus: return String(localized: "专注模式结束后提醒")
             case nil: break
             }
-            return model.isSnoozing ? String(localized: "稍后提醒") : String(localized: "专注中")
+            return snapshot.isSnoozing ? String(localized: "稍后提醒") : String(localized: "专注中")
         case .paused: return String(localized: "已暂停")
         case .awaitingBreak: return String(localized: "该休息啦")
         case .resting: return String(localized: "休息中")
@@ -311,7 +390,7 @@ private struct MenuCountdownRing: View {
     }
 
     private var phaseColor: Color {
-        switch model.phase {
+        switch snapshot.phase {
         case .working, .awaitingBreak: return Theme.tomato
         case .resting: return Theme.leaf
         case .idle, .paused, .away, .offHours: return Theme.tomatoSoft
@@ -319,7 +398,7 @@ private struct MenuCountdownRing: View {
     }
 
     private var statusColor: Color {
-        [.idle, .paused, .away, .offHours].contains(model.phase) ? Theme.inkSoft : phaseColor
+        [.idle, .paused, .away, .offHours].contains(snapshot.phase) ? Theme.inkSoft : phaseColor
     }
 
 }
@@ -486,6 +565,47 @@ private struct WeekChart: View {
 private struct MenuHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// orderOut 会保留菜单宿主，必须读取实际遮挡状态，不能用 SwiftUI 的 onDisappear 判断。
+@MainActor
+final class MenuWindowVisibility: NSObject, ObservableObject {
+    @Published private(set) var isVisible = false
+    private weak var window: NSWindow?
+
+    func track(_ window: NSWindow?) {
+        guard self.window !== window else {
+            refresh()
+            return
+        }
+        NotificationCenter.default.removeObserver(self)
+        self.window = window
+        if let window {
+            for name in [
+                NSWindow.didChangeOcclusionStateNotification,
+                NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification,
+                NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification,
+                NSWindow.didExposeNotification
+            ] {
+                NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: name, object: window)
+            }
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: window
+            )
+        }
+        refresh()
+    }
+
+    @objc private func refresh() {
+        let visible = window.map { $0.isVisible && $0.occlusionState.contains(.visible) } ?? false
+        if visible != isVisible { isVisible = visible }
+    }
+
+    @objc private func windowWillClose() {
+        if isVisible { isVisible = false }
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
 }
 
 /// 从实际宿主窗口读取屏幕；切换显示器、改变屏幕排列后重新计算可用高度。

@@ -1,6 +1,7 @@
 // 这些界面回归依赖 Debug 专用状态注入；Release 构建仍可单独运行性能基准。
 #if DEBUG
 import AppKit
+import Combine
 import SwiftUI
 import Testing
 @testable import EyeBreak
@@ -78,6 +79,51 @@ private final class MenuWindowFixture {
 @MainActor
 @Suite(.serialized)
 struct MenuWindowTests {
+    @Test("菜单可见性跟随真实宿主的显示、隐藏和重开")
+    func visibilityTracksHostWindow() throws {
+        let fixture = try MenuWindowFixture()
+        defer { fixture.cleanUp() }
+        let screen = try #require(NSScreen.main)
+        let window = NSWindow(
+            contentRect: NSRect(x: screen.visibleFrame.midX, y: screen.visibleFrame.midY, width: 120, height: 100),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+        defer { window.close() }
+        let visibility = MenuWindowVisibility()
+        visibility.track(window)
+        let countdown = MenuCountdownState(model: fixture.model, windowVisibility: visibility)
+        var updates = 0
+        let subscription = countdown.objectWillChange.sink { updates += 1 }
+        defer { subscription.cancel() }
+        #expect(!visibility.isVisible)
+        #expect(!countdown.isVisible)
+
+        window.orderFrontRegardless()
+        waitForVisibility(visibility, expected: true)
+        #expect(window.isVisible && window.occlusionState.contains(.visible))
+        #expect(countdown.isVisible)
+        let firstActivation = countdown.activationID
+        window.orderOut(nil)
+        waitForVisibility(visibility, expected: false)
+        // 没有 SwiftUI 宿主也必须同步停订阅，不能依赖隐藏视图执行 onChange。
+        #expect(!countdown.isVisible)
+        updates = 0
+        fixture.model.setWorkInterval(1500)
+        #expect(updates == 0)
+        #expect(countdown.snapshot.workInterval == 1200)
+        window.orderFrontRegardless()
+        waitForVisibility(visibility, expected: true)
+        #expect(countdown.isVisible)
+        #expect(countdown.snapshot.workInterval == 1500)
+        #expect(countdown.activationID != firstActivation)
+        window.close()
+        #expect(!visibility.isVisible)
+        visibility.track(nil)
+        #expect(!visibility.isVisible)
+    }
+
     @Test("菜单外壳在同一窗口随本周收起、展开、再收起自动调整高度")
     func shellTracksNaturalHeightInSameWindow() throws {
         let fixture = try MenuWindowFixture()
@@ -165,6 +211,14 @@ struct MenuWindowTests {
     private func expectSize(_ size: NSSize, height: CGFloat) {
         #expect(abs(size.width - 280) <= 1)
         #expect(abs(size.height - height) <= 1)
+    }
+
+    private func waitForVisibility(_ visibility: MenuWindowVisibility, expected: Bool) {
+        let deadline = Date().addingTimeInterval(3)
+        while visibility.isVisible != expected, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        #expect(visibility.isVisible == expected)
     }
 }
 
