@@ -279,7 +279,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.3;
+				MARKETING_VERSION = 1.5.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yau.EyeBreak;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SPARKLE_FEED_URL = "https://github.com/yauyy/EyeBreak/releases/latest/download/appcast.xml";
@@ -312,7 +312,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.3;
+				MARKETING_VERSION = 1.5.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yau.EyeBreak;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SPARKLE_FEED_URL = "https://github.com/yauyy/EyeBreak/releases/latest/download/appcast.xml";
@@ -329,7 +329,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.5.3;
+				MARKETING_VERSION = 1.5.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yau.EyeBreakTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EyeBreak.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EyeBreak";
@@ -344,7 +344,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.5.3;
+				MARKETING_VERSION = 1.5.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yau.EyeBreakTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EyeBreak.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EyeBreak";
