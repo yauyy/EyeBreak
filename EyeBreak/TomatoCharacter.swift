@@ -14,6 +14,8 @@ struct TomatoCharacter: View {
         case rollEyes
         /// 肘弯手臂抬杯，眯眼轻啜两口后放下
         case drinkWater
+        /// 小圆脚交替抬起，身体摇摆并反向摆手
+        case walk
     }
 
     var motion: Motion
@@ -115,6 +117,7 @@ enum TomatoPlayback {
         case .lookFar, .closeEyes, .drinkWater: return 4
         case .blink: return 6.4
         case .rollEyes: return 3
+        case .walk: return 3.6
         }
     }
 
@@ -137,6 +140,8 @@ private enum TomatoRenderer {
     nonisolated private static let ink = Color(red: 74 / 255, green: 52 / 255, blue: 40 / 255)
     nonisolated private static let leaf = Color(red: 91 / 255, green: 203 / 255, blue: 110 / 255)
     nonisolated private static let leafDeep = Color(red: 62 / 255, green: 158 / 255, blue: 82 / 255)
+    // 第 5 轮验收摆幅，保持手眼及手脚间距，与设计稿逐项一致。
+    nonisolated private static let walkHandMotion = (forwardLift: 3.687, forwardInset: 2.4, backwardDrop: 1.161)
 
     private struct Frame: Sendable {
         var lookX = 0.0
@@ -152,6 +157,14 @@ private enum TomatoRenderer {
         var cupRotation = 0.0
         var handX = 0.0
         var handY = 0.0
+        var walkSwing = 0.0
+        var leftStep = 0.0
+        var rightStep = 0.0
+        var walkBob = 0.0
+        var walkShift = 0.0
+        var walkSway = 0.0
+        var walkSquash = 0.0
+        var walkHands: [(x: Double, y: Double)] = []
     }
 
     nonisolated static func representativeTime(for motion: TomatoCharacter.Motion) -> Double {
@@ -161,6 +174,7 @@ private enum TomatoRenderer {
         case .blink: return 0.78
         case .rollEyes: return 1.5
         case .drinkWater: return 1.4
+        case .walk: return 0.45
         }
     }
 
@@ -229,6 +243,29 @@ private enum TomatoRenderer {
             let angle = state.cupRotation * .pi / 180
             state.handX = state.cupX + 9.7 * cos(angle) - 2 * sin(angle)
             state.handY = state.cupY + 9.7 * sin(angle) + 2 * cos(angle)
+        case .walk:
+            // 3.6 秒四步；起止各 0.225 秒缓入缓出，站姿接点的速度也归零。
+            let p = phase(t, duration: TomatoPlayback.cycleDuration(for: .walk))
+            let stride = sin(2 * .pi * p / 1.8)
+            let settle = ease(min(p, 3.6 - p) / 0.225)
+            state.walkSwing = stride * settle
+            // 半波平方让脚落地时速度为零；正半波抬左脚，负半波抬右脚。
+            state.leftStep = pow(max(0, stride), 2) * settle
+            state.rightStep = pow(max(0, -stride), 2) * settle
+            state.walkBob = 2 * (state.leftStep + state.rightStep)
+            state.walkShift = 1.5 * state.walkSwing
+            state.walkSway = 4.5 * state.walkSwing
+            let (forwardLift, forwardInset, backwardDrop) = walkHandMotion
+            state.walkHands = [
+                (x: 22.5 + forwardInset * state.rightStep - 0.5 * state.leftStep,
+                 y: 75.8 + backwardDrop * state.leftStep - forwardLift * state.rightStep),
+                (x: 77.5 - forwardInset * state.leftStep + 0.5 * state.rightStep,
+                 y: 75.8 + backwardDrop * state.rightStep - forwardLift * state.leftStep)
+            ]
+            // 仅中途换步时短促压扁 2%；接触前后各 0.16 秒余弦缓动，首尾保持站姿。
+            let landing = (p / 0.9).rounded(.toNearestOrAwayFromZero) * 0.9
+            let impact = landing > 0 && landing < 3.6 ? 1 - ease(abs(p - landing) / 0.16) : 0
+            state.walkSquash = 0.02 * impact
         }
         return state
     }
@@ -237,6 +274,15 @@ private enum TomatoRenderer {
         let state = frame(motion: motion, t: t)
         var ctx = context
         ctx.scaleBy(x: scale, y: scale)
+        if motion == .walk {
+            // 先画脚，着地脚不随身体摇摆；上半截由随后绘制的身体自然遮住。
+            drawFoot(ctx, x: 38 - 5.5 * state.leftStep, y: 93.2 - 5.8 * state.leftStep, rotation: 4 * state.leftStep)
+            drawFoot(ctx, x: 62 + 5.5 * state.rightStep, y: 93.2 - 5.8 * state.rightStep, rotation: -4 * state.rightStep)
+            ctx.translateBy(x: 50 + state.walkShift, y: 93 - state.walkBob)
+            ctx.rotate(by: .degrees(state.walkSway))
+            ctx.scaleBy(x: 1, y: 1 - state.walkSquash)
+            ctx.translateBy(x: -50, y: -93)
+        }
         if motion == .closeEyes {
             // 以身体底部为支点，4 秒完成一次吸气和呼气；手随身体一起伸缩。
             ctx.translateBy(x: 50, y: 93)
@@ -272,6 +318,16 @@ private enum TomatoRenderer {
         case .rollEyes:
             drawArm(ctx, rootX: 85, rootY: 74, bendX: 98, bendY: 58,
                     x: 83 + 7 * cos(state.angle), y: 48 + 8 * sin(state.angle))
+        case .walk:
+            let w = state.walkSwing
+            let left = state.walkHands[0], right = state.walkHands[1]
+            // 肩根、控制点基准和外弯不变；纵向控制点按原比例跟随缩小后的摆幅。
+            let backBend = 0.6 * walkHandMotion.backwardDrop
+            let frontBend = 8.7 / 11.5 * walkHandMotion.forwardLift
+            drawArm(ctx, rootX: 15, rootY: 58.5, bendX: 7.5 - 1.5 * w,
+                    bendY: 72 + backBend * state.leftStep - frontBend * state.rightStep, x: left.x, y: left.y)
+            drawArm(ctx, rootX: 85, rootY: 58.5, bendX: 92.5 - 1.5 * w,
+                    bendY: 72 + backBend * state.rightStep - frontBend * state.leftStep, x: right.x, y: right.y)
         case .drinkWater:
             // 根部与其他右臂一致；肘部向下、向外弯，随抬杯和轻啜平滑移动。
             let bendX = 83 + 2.5 * state.lift
@@ -297,6 +353,11 @@ private enum TomatoRenderer {
             let x = 83 + 7 * cos(state.angle)
             let y = 48 + 8 * sin(state.angle)
             drawHand(ctx, x: x, y: y, rotation: atan2(y - 58, x - 98) * 180 / .pi)
+        case .walk:
+            let w = state.walkSwing
+            let left = state.walkHands[0], right = state.walkHands[1]
+            drawHand(ctx, x: left.x, y: left.y, rotation: 10 * w)
+            drawHand(ctx, x: right.x, y: right.y, rotation: -10 * w)
         }
     }
 
@@ -419,6 +480,19 @@ private enum TomatoRenderer {
         ctx.stroke(hand, with: .color(ink), style: StrokeStyle(lineWidth: 2.2 / scale, lineCap: .round, lineJoin: .round))
     }
 
+    nonisolated private static func drawFoot(_ context: GraphicsContext, x: Double, y: Double, rotation: Double) {
+        var ctx = context
+        ctx.translateBy(x: x, y: y)
+        ctx.rotate(by: .degrees(rotation))
+        // 小脚沿用圆手的奶油白、暖色底和 2.2 描边；宽 15、高 8.2，置于身体后面。
+        let foot = Path(ellipseIn: CGRect(x: -7.5, y: -4.1, width: 15, height: 8.2))
+        ctx.fill(foot, with: .color(Color(red: 1, green: 253 / 255, blue: 248 / 255)))
+        var clipped = ctx
+        clipped.clip(to: foot)
+        fillEllipse(clipped, x: 0, y: 2.5, rx: 6.5, ry: 1.5, color: Color(red: 244 / 255, green: 235 / 255, blue: 221 / 255))
+        ctx.stroke(foot, with: .color(ink), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+    }
+
     nonisolated private static func drawCup(_ context: GraphicsContext, state: Frame) {
         var ctx = context
         ctx.translateBy(x: state.cupX, y: state.cupY)
@@ -490,6 +564,7 @@ extension RestExercise {
         case .closeEyes: return .closeEyes
         case .rollEyes: return .rollEyes
         case .drinkWater: return .drinkWater
+        case .walk: return .walk
         }
     }
 }

@@ -2,7 +2,7 @@
 
 [中文](README.md) | English
 
-A cute tomato that reminds you to rest your eyes. EyeBreak lives in the macOS menu bar and, by default, reminds you to take a 20-second break every 20 minutes. Follow the tomato through rotating break activities: look far away, blink, close your eyes to relax, roll your eyes, and sip some water. It then celebrates and starts the next round.
+A cute tomato that reminds you to rest your eyes. EyeBreak lives in the macOS menu bar and, by default, reminds you to take a 20-second break every 20 minutes. Follow the tomato through rotating break activities: look far away, blink, close your eyes to relax, roll your eyes, sip some water, and take a walk. It then celebrates and starts the next round.
 
 ## Download
 
@@ -22,7 +22,7 @@ Requires macOS 13 or later. Universal app for Apple silicon and Intel.
 
 1. Click the tomato in the menu bar and press **Start**. A focus round begins (20 minutes by default)
 2. When time is up, a reminder panel appears on the screen you're looking at and stays until you respond. The timer pauses and you won't be nagged again
-3. Press **Start break** and follow the tomato for a short break activity (20 seconds by default): look far away, blink, close your eyes, roll your eyes, or sip some water
+3. Press **Start break** and follow the tomato for a short break activity (20 seconds by default): look far away, blink, close your eyes, roll your eyes, sip some water, or take a walk
 4. When the break ends you collect a tomato, there's a little confetti, and the next round starts
 5. Not a good moment? Choose **In 5 min** or **Skip**
 

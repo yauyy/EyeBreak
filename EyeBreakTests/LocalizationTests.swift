@@ -13,6 +13,8 @@ struct LocalizationTests {
         ("看看 6 米外", "Look 20 feet away"),
         ("喝口水", "Sip some water"),
         ("起身喝几口水", "Get up and sip some water"),
+        ("走一走", "Take a walk"),
+        ("起身走一走", "Get up and walk around"),
         ("下一轮生效", "Takes effect next round"),
         ("下次休息生效", "Takes effect next break"),
         ("EyeBreak 设置", "EyeBreak Settings"),
@@ -54,6 +56,8 @@ struct LocalizationTests {
         #expect(String(format: format, "Blink slowly", 20) == "Blink slowly for 20 seconds")
         let drinkWater = try englishBundle().localizedString(forKey: "起身喝几口水", value: nil, table: nil)
         #expect(String(format: format, drinkWater, 20) == "Get up and sip some water for 20 seconds")
+        let walk = try englishBundle().localizedString(forKey: "起身走一走", value: nil, table: nil)
+        #expect(String(format: format, walk, 20) == "Get up and walk around for 20 seconds")
     }
 
     @Test("圆环完整读法有英文版")

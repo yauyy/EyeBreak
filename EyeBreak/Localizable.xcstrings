@@ -1673,12 +1673,32 @@
         }
       }
     },
+    "走一走": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take a walk"
+          }
+        }
+      }
+    },
     "起身喝几口水": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Get up and sip some water"
+          }
+        }
+      }
+    },
+    "起身走一走": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get up and walk around"
           }
         }
       }

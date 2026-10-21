@@ -12,7 +12,7 @@
     h1 { margin: 0 0 10px; font-size: 28px; }
     h2 { margin: 28px 0 12px; font-size: 18px; }
     p { margin: 8px 0; color: #795B4B; line-height: 1.7; }
-    .row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; }
+    .row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
     figure { margin: 0; text-align: center; background: #FFFDF8; border: 2px solid #EEDAC9; border-radius: 24px; overflow: hidden; }
     canvas { display: block; width: 100%; height: auto; aspect-ratio: 1; }
     figcaption { padding: 0 8px 18px; font-size: 17px; font-weight: 650; }
@@ -26,7 +26,6 @@
     details { margin-top: 28px; line-height: 1.8; }
     summary { cursor: pointer; font-weight: 600; }
     #status { min-height: 28px; }
-    @media (max-width: 1150px) { .row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @media (max-width: 760px) { body { padding: 28px 16px; } .row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
     @media (max-width: 440px) { .row { grid-template-columns: minmax(0, 1fr); } }
   </style>
@@ -35,7 +34,7 @@
 <body>
   <main>
     <h1>番茄仔 · 一起休息眼睛</h1>
-    <p id="status" role="status">五个动作同步计时、循环播放。添加 <code>?still=1.8</code> 可停在指定秒数。</p>
+    <p id="status" role="status">六个动作同步计时、循环播放。添加 <code>?still=1.8</code> 可停在指定秒数。</p>
     <h2>动作演示</h2>
     <section class="row" aria-label="循环动作演示">
       <figure><canvas width="240" height="240" data-motion="lookFar" aria-label="手搭凉棚，慢慢望向右上方"></canvas><figcaption>看看远处<small>4 秒 · 望向右上，停留，再回来</small></figcaption></figure>
@@ -43,6 +42,7 @@
       <figure><canvas width="240" height="240" data-motion="closeEyes" aria-label="双手轻捂眼睛外侧，露出闭眼弧线，轻轻呼吸"></canvas><figcaption>闭眼放松<small>4 秒 · 轻捂眼睛外侧，轻轻呼吸</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="rollEyes" aria-label="眼珠跟着带手臂的小手顺时针画圈"></canvas><figcaption>转转眼球<small>3 秒 · 眼珠跟着小手画圈</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="drinkWater" aria-label="右手端起小水杯，眯眼轻啜两口，再慢慢放下"></canvas><figcaption>喝口水<small>4 秒 · 抬杯，轻啜两口，放下停顿</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="walk" aria-label="番茄仔原地走路，小圆脚明显离地，身体移向着地脚，对侧手抬高内收"></canvas><figcaption>走一走<small>3.6 秒 · 重心换边，抬脚摆手，落脚轻弹</small></figcaption></figure>
     </section>
     <h2>减少动态效果 · 静止代表帧</h2>
     <section class="row" aria-label="减少动态效果的静止代表帧">
@@ -51,19 +51,21 @@
       <figure><canvas width="240" height="240" data-motion="closeEyes" data-reduced aria-label="双手捂在外侧且看得见闭眼的代表帧"></canvas><figcaption>闭眼放松<small>双手捂在外侧，闭眼弧线和小嘴清楚可见</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="rollEyes" data-reduced aria-label="转眼代表帧"></canvas><figcaption>转转眼球<small>保留手臂和奶油白描边圆点轨迹</small></figcaption></figure>
       <figure><canvas width="240" height="240" data-motion="drinkWater" data-reduced aria-label="杯沿贴近嘴边，眯眼喝水的代表帧"></canvas><figcaption>喝口水<small>1.4 秒 · 杯沿贴嘴，眯眼轻啜</small></figcaption></figure>
+      <figure><canvas width="240" height="240" data-motion="walk" data-reduced aria-label="左脚明显离地、身体向右倾，右手高而内收、左手低而外摆的走路代表帧"></canvas><figcaption>走一走<small>0.45 秒 · 左脚离地，右手高、左手低</small></figcaption></figure>
     </section>
     <h2>76px 提醒面板尺寸 · 浅色 / 深色</h2>
-    <p>五个动作与上排使用相同时间；每格并排显示浅色、深色背景，画布均为 76×76px。</p>
-    <section class="row compact" aria-label="五个动作的 76px 浅色和深色背景对比">
+    <p>六个动作与上排使用相同时间；每格并排显示浅色、深色背景，画布均为 76×76px。</p>
+    <section class="row compact" aria-label="六个动作的 76px 浅色和深色背景对比">
       <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="lookFar" aria-label="76px 浅色背景远眺"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="lookFar" aria-label="76px 深色背景远眺"></canvas></div></div><figcaption>看看远处<small>浅色 / 深色 · 76px</small></figcaption></figure>
       <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="blink" aria-label="76px 浅色背景眨眼"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="blink" aria-label="76px 深色背景眨眼"></canvas></div></div><figcaption>眨眨眼<small>浅色 / 深色 · 76px</small></figcaption></figure>
       <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="closeEyes" aria-label="76px 浅色背景闭眼"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="closeEyes" aria-label="76px 深色背景闭眼"></canvas></div></div><figcaption>闭眼放松<small>浅色 / 深色 · 76px</small></figcaption></figure>
       <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="rollEyes" aria-label="76px 浅色背景转眼"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="rollEyes" aria-label="76px 深色背景转眼"></canvas></div></div><figcaption>转转眼球<small>浅色 / 深色 · 76px</small></figcaption></figure>
       <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="drinkWater" aria-label="76px 浅色背景喝水"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="drinkWater" aria-label="76px 深色背景喝水"></canvas></div></div><figcaption>喝口水<small>浅色 / 深色 · 76px</small></figcaption></figure>
+      <figure><div class="samples"><div class="sample"><canvas width="76" height="76" data-motion="walk" aria-label="76px 浅色背景走一走"></canvas></div><div class="sample dark"><canvas width="76" height="76" data-motion="walk" aria-label="76px 深色背景走一走"></canvas></div></div><figcaption>走一走<small>浅色 / 深色 · 76px</small></figcaption></figure>
     </section>
     <details>
       <summary>设计与实现约定</summary>
-      <p>模块划分：本页和 tomato-motion.js 提供五个动作的离线设计预览；本轮修订 Canvas 喝水设计的下垂肘弯，保留侧握、倾杯、水平水面和放下姿势，复用现有四个动作的 100×100 坐标、配色和绘制函数，供后续移植 TomatoCharacter.swift 对照。</p>
+      <p>模块划分：本页和 tomato-motion.js 提供六个动作的离线设计预览；「走一走」第 5 轮保持手部基准、肩根、脚与身体运动不变，只收小前摆并微调后摆下沉。允许手掌压到腮红，离线间距门槛改为双眼及嘴 ≥2、手脚 ≥2，保留脚部可见面积检查。沿用现有 100×100 坐标、配色与绘制函数，供后续移植 TomatoCharacter.swift 对照。喝水的下垂肘弯、侧握、倾杯、水平水面和放下姿势继续保留。</p>
       <p>接口与交互：frame(motion, t) 以纯时间公式计算姿态，draw(ctx, motion, t) 绘制。动作演示和 76px 预览遵循系统的减少动态效果设置，静止代表帧一排始终显示代表时刻。?still 参数固定动作演示和 76px 预览的时间，静止代表帧一排不受影响；显式固定帧优先于系统设置，便于逐帧验收。</p>
       <p>后台数据库：本次是纯绘制改动，不涉及数据存储或接口。</p>
       <p>关联影响：本轮改动仅位于 Design/motion/tomato-motion.js 和 index.html；App 的 RestExercise、BreakPanel、TomatoCharacter.swift 留待画风验收通过后移植。</p>
@@ -75,6 +77,19 @@
       <p>喝口水关键姿势：放下（0、3.6、4s）杯中心 (68.5, 80)、手心 (78.2, 82)、倾角 0°；到嘴（1、1.8、2.6s）杯中心 (54.8, 77.7)、手心约 (64.54, 75.92)、局部倾角 −22°；啜饮（1.4、2.2s）杯中心 (54.8, 77.35)、手心约 (64.40, 74.90)、局部倾角 −26°。放下时杯身底部含描边为 90.3，手掌底部含描边为 89.4，均位于身体底边 y=93 之上；手掌只从右侧轻微露出，有限播放停在 4s 仍是完整的准备喝水姿势。</p>
       <p>喝口水手臂决策：右臂根部恢复为 (85, 74)，与远眺、转眼一致，宽 11 的根部圆端压在身体侧面轮廓上。二次曲线控制点为 (83 + 2.5g, 83 + 2.5g − 0.5s)：放下（0、3.6、4s）为 (83, 83)，到嘴（1、1.8、2.6s）为 (85.5, 85.5)，啜饮峰值（1.4、2.2s）为 (85.5, 85)。放下时控制点位于根部与手心连线的下方偏外，保留轻微肘弯；端杯时从身体右侧先向下、略向外，再向左上接到手掌，形成浅 U / 钩形，曲线相对根部与手心连线下垂约 5～6。含描边的可见外伸约 5，手臂不低过身体底边 y=93，末端仍由手掌遮住。控制点全程随同一余弦缓动 g 和连续啜饮进度 s 插值，抬杯、轻啜、放下与循环接点均无跳变。身体仍绕 (50, 93) 后仰 2.5g°；眼皮闭合进度 ease((g − 0.55) / 0.45)，闭合曲线控制点深度连续变到 5.6，复用闭眼弧线的形状。</p>
       <p>喝口水配色与水面：杯壁 #FFFDF8，水色由 #B1DEEF 加深为柔和浅蓝 #9DD3EC，描边 #4A3428，水面高光 #FFFFFF。杯内壁先建立随杯转动的裁剪区域，再对水和短白高光反向旋转 −(φ + 2.5g)°，同时抵消杯倾角和身体后仰，使水面相对画面始终水平；填色延伸到杯底并由内壁裁剪，倾杯时也不会溢出杯身。保留暖白杯壁，不加把手、贴纸或额外阴影。</p>
+      <p>走一走节奏：一轮 3.6s，令 p = t mod 3.6，a = sin(2πp / 1.8)，e = ease(min(p, 3.6 − p) / 0.225)，w = ae；ease 沿用输入限制在 0～1 的余弦缓动。左脚抬起进度 L = max(0, a)²e，右脚 R = max(0, −a)²e；左右各迈两步，左脚峰值为 0.45 / 2.25s，右脚峰值为 1.35 / 3.15s。起止用 e 平滑收回摆动，0 / 3.6s 为双脚着地、双手回到腰部基准的同一站立姿势，有限播放两轮停在 7.2s 也保持完整；代表帧为 0.45s。</p>
+      <p>走一走小脚：站立中心为 (38, 93.2)、(62, 93.2)，宽 15、高 8.2；填充 #FFFDF8、下缘暖色 #F4EBDD、描边 #4A3428 宽 2.2，round 线帽和接角，与小圆手配套。左脚中心为 (38 − 5.5L, 93.2 − 5.8L)，转角 4L°；右脚为 (62 + 5.5R, 93.2 − 5.8R)，转角 −4R°。外移由 4.2 增至 5.5（增加 1.3），倾角由 ±12° 收为 ±4°，使露出面积和手脚间距同时满足要求；抬高量仍为 5.8。最大抬脚中心为 (32.5, 87.4)、(67.5, 87.4)。地面取站立脚含描边的底边 y=98.4，最大抬脚时脚底离地约 5.7767，在 76px 下为 4.3903px。脚全程在身体后面，不随抬起换层；站姿仍露出下半截，着地脚位置和角度始终固定。脚不进入身体的平移、旋转与压扁变换。图层始终为脚 → 身体 → 叶子 → 脸 → 手臂 → 手掌；不加地面装饰、阴影或新颜色。</p>
+      <p>走一走重心与落脚：身体向着地侧平移 1.5w，上浮 2(L + R)，绕脚边支点 (50, 93) 倾斜 4.5w°；抬左脚时向右移、向右倾，抬右脚时镜像，迈步中段最高。落脚压扁只发生在 0.9 / 1.8 / 2.7s 的中途换步：取最近的落脚时刻 c = round(p / 0.9) × 0.9，仅当 0 &lt; c &lt; 3.6 时 q = 1 − ease(|p − c| / 0.16)，其余 q=0。沿用闭眼呼吸的支点缩放写法，纵向 scaleY = 1 − 0.02q，横向不缩放；落脚前后各 0.16s 平滑进入和恢复，最低时压扁 2%，0 / 3.6 / 7.2s 均恢复原站姿。眼睛睁开，保留原有小嘴与腮红。</p>
+      <p>走一走手臂与手（第 5 轮）：以下为身体变换前坐标。站姿手心基准保持 (22.5, 75.8)、(77.5, 75.8)。前摆抬高 A=3.687、内收 I=2.4，后摆下沉 B=1.161、外摆仍为 0.5；左手中心为 (22.5 + IR − 0.5L, 75.8 + BL − AR)，右手为 (77.5 − IL + 0.5R, 75.8 + BR − AL)，局部转角仍为 10w°、−10w°。沿用当前连续误差扣减，在 0.001 单位精度下向下取可通过两项间距检查的最大摆幅；不采用基准外移 11、下移 7.45 的候选。两臂复用 drawArm，肩根保持 (15, 58.5)、(85, 58.5)。控制点基准和外弯不变，纵向按原摆幅比例跟随：后摆系数 b=0.6B=0.6966、前摆系数 f=(8.7/11.5)A≈2.789296，控制点为 (7.5 − 1.5w, 72 + bL − fR)、(92.5 − 1.5w, 72 + bR − fL)。控制点高度仍位于肩根和掌心之间，曲线纵向单调，保留自然肘弯，末端接掌心，先画臂再画手。</p>
+      <p>走一走实际高低差：局部纵向差为 4.848(L − R)，不能当作最终画面的高低差。最大抬脚时，原有 4.5° 身体倾斜抵消约 4.166 的高度差，画面中前手仅比后手高约 0.666877，76px 下约 0.506827px。全周期两手中心最大绝对高低差约 0.951247（76px 下约 0.722948px，约 0.77125s 及镜像时刻），此时前手反而略低；过渡阶段会有高低次序反转。固定基准和身体参数时，无法同时达到眼睛间距 ≥2 与画面高低差约 5，按决定优先不碰眼睛；不能据此宣称 76px 下有明显的一高一低。</p>
+      <p>走一走手臂关键帧：站姿手心仍为 (22.5, 75.8)、(77.5, 75.8)，控制点仍为 (7.5, 72)、(92.5, 72)。0.45s 左后摆手心 (22, 76.961)、控制点 (6, 72.6966)，右前摆手心 (75.1, 72.113)、控制点约 (91, 69.210704)；1.35s 左前摆手心 (24.9, 72.113)、控制点约 (9, 69.210704)，右后摆手心 (78, 76.961)、控制点 (94, 72.6966)。肩根始终不变，曲线端点跟随掌心；0 / 3.6 / 7.2s 的站姿完全一致。</p>
+      <p>走一走验收点：用 ?still=0、0.225、0.45、0.8、0.9、1.0、1.35、2.25、3.15、3.6、7.2 对照固定帧；0 / 3.6 / 7.2 看站姿完全一致、脚上半被身体遮住、手心回到腰部且肩侧有肘弯；0.225 看抬脚和起伏过渡；0.45 / 2.25 与 1.35 / 3.15 看脚底离地空隙、重心朝着地侧、对侧手一高一低；0.8 / 0.9 / 1.0 看换步双脚着地和压扁恢复。76px 浅色、深色背景都应能分清脚和手的交替，脸部保持清楚。全周期含描边检查手、手臂、脚均在 100×100 画布内，距边至少 1.5；站立脚底为 y=98.4，留 1.6 下边距。</p>
+      <p>走一走离线检查：在仓库根目录运行 <code>node Design/motion/tomato-motion.js --check-walk</code>，无需浏览器、网络或第三方依赖，不生成文件。遍历 0～3.6s，步长 0.0001s，共 36,001 个时刻，每个时刻检查左右手与左右脚的四种组合。使用与绘制共享的轮廓尺寸和脚姿态，将手掌椭圆及 2.2 描边经过身体平移、旋转、压扁和手部旋转后，与不随身体变换的脚椭圆及描边做凸形状投影分离检查，包含被身体盖住的轮廓。方向搜索取得的分离量为真实欧氏间距的保守下界；再按相对轮廓速度上界 400 单位/s，扣除半个采样间隔的 0.02 单位误差，验证整个连续周期。当前前后摆幅均受原较大摆幅的速度界覆盖；手掌含描边距身体支点全周期小于 44.1，满足推导所用半径 50。连续下界至少 2 才通过，否则命令返回非零退出码。修改公式时须同步核对代码内的速度界推导。命令同时输出 clearance（手脚）、faceClearance（手与双眼/嘴）及 visibility（脚部可见面积），三项全部通过才返回 0。</p>
+      <p>第 5 轮眼嘴检查：双手分别与两只眼睛、嘴做六组完整轮廓检查，时间范围和采样精度与手脚检查相同。眼睛外轮廓完整包住眼白及大小高光；嘴使用两段真实二次曲线的凸包，并外扩 0.9 的 round 描边，避免漏掉嘴角。脸与手共用身体变换，检查保留身体压扁和手掌自转；同样扣除 0.02 的连续周期误差，要求间距下界 ≥2。按本轮决定取消腮红避让和手掌相对腮红的高度限制，允许站姿及运动中压到腮红。五官坐标和嘴曲线仍与绘制共用定义。</p>
+      <p>第 5 轮间距结果：手与双眼/嘴的采样最小间距约 2.020361775，发生在 1.35s 的左前摆手与左眼，连续下界约 2.000361775；手脚采样最小间距约 2.020675310，发生在 0.45s 的左后摆手与左抬脚，连续下界约 2.000675310。两项均覆盖全周期并满足 ≥2，左右镜像步同样覆盖。站姿手掌贴着腮红下沿的样子保持不变。</p>
+      <p>走一走面积检查：同一命令同时检查脚被身体遮挡后的面积。身体按椭圆真实外法线外扩 2.4（描边 4.8 的一半），脚外扩 1.1（描边 2.2 的一半），各用 1,024 点形成凸轮廓，再应用与绘制一致的身体和脚部变换；用多边形求交面积扣除遮挡，另检查脚内填充区域，避免只增加描边。全周期每 0.001s 检查一次，共 3,601 个时刻；抬起脚的两类面积均须不少于同侧原站姿面积。面积属于数值几何检查，区别于间距的连续保守证明；可用 <code>node -e 'console.log(require("./Design/motion/tomato-motion.js").checkWalkVisibility(2048))'</code> 加倍轮廓点数复核。</p>
+      <p>脚部面积沿用第 3 轮参数：可见外轮廓面积由站姿约 65.25 增至最大抬脚约 70.78，增加约 8.48%；内填充由约 42.72 增至 47.53，增加约 11.26%（单位均为设计坐标平方）。当轮独立采用真实轮廓竖向切片积分，以 0.0001s 复核全部 36,001 个时刻，抬脚面积低于站姿的样本为 0；2,048 点与 8,192 点积分结果差约 0.00053。站姿面积约 65.24677、抬脚峰值约 70.78016，整轮均不低于站姿。76px 下峰值外移 4.18px、脚底离地约 4.39px。本轮不改脚部或身体参数，保留身体起伏、重心位移、倾斜、落脚压扁、首尾站姿、3.6s 周期与 0.45s 代表帧；摆手差值以本轮结果为准。</p>
+      <p>第 5 轮决策记录：放宽腮红规则，保留两眼（含高光）、嘴和手脚的全周期 ≥2 间距。拒绝外移 11、下移 7.45 的手部基准候选；站姿、肩根、抬脚及身体参数保持当前版本，只调整摆手幅度及跟随控制点。眼睛间距优先于高低差目标，实际画面差值按上文记录。脚仍全程后层，不换层。修改与说明均仅在本页和 tomato-motion.js；本轮不改 Swift、不提交、不生成其他文件，后续移植须另行执行。</p>
       <p>验收点：喝水可用 ?still=0、0.5、1、1.4、1.8、2.2、2.6、3.2、3.6、4 对照固定帧：0 / 4 看根部贴身体、轻微下垂肘弯、侧握和完整放下姿势；0.5 / 3.2 看肘弯随抬放平滑变化；1 / 1.4 / 1.8 / 2.2 / 2.6 看手臂先向下再向左上、可见外伸约 5 且不低过身体底边，以及杯沿贴嘴、两次额外倾杯、水平水面与裁剪、眼睛与腮红的可见部分。76px 下分别检查浅色、深色背景的肘弯、水色和描边。原动作仍检查手臂根部、闭眼弧线、远眺手眼间隙、眨眼遮罩和圆点轨迹；0 / 4 应完全一致。</p>
     </details>
   </main>
