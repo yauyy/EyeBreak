@@ -112,7 +112,7 @@ struct PerformanceObservationTests {
         var panel: BreakPanelPresentation? = BreakPanelPresentation(model: fixture.model)
         weak let weakPanel = panel
         fixture.model.setRestDuration(30)
-        #expect(panel?.configuration.restDuration == 30)
+        #expect(panel?.configuration.breakDuration == 30)
         fixture.model.start()
         fixture.advance(1200)
         #expect(panel?.configuration.phase == .awaitingBreak)

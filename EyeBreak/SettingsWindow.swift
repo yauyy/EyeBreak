@@ -232,7 +232,7 @@ struct SettingsContentView: View {
     private var sectionContent: some View {
         switch presentation.section {
         case .general: generalSettings
-        case .rest: RestExerciseSettings(model: model).settingsCard()
+        case .rest: RestExerciseSettings(model: model)
         case .schedule: scheduleSettings
         case .achievements: AchievementsView(stats: stats)
         case .about: aboutSettings
@@ -395,26 +395,40 @@ struct SettingsContentView: View {
     }
 }
 
-/// 只发布动作集合；即使设置页可见，也不订阅每秒变化的计时状态。
+/// 只发布动作集合和长休息设置；即使设置页可见，也不订阅每秒变化的计时状态。
 @MainActor
 final class SettingsExerciseSelection: ObservableObject {
     @Published private(set) var enabledExercises: Set<RestExercise>
+    @Published private(set) var longBreak: LongBreakSettings
     private let model: EyeBreakModel
-    private var subscription: AnyCancellable?
+    private var subscriptions: Set<AnyCancellable> = []
 
     init(model: EyeBreakModel) {
         self.model = model
         enabledExercises = model.enabledExercises
-        subscription = model.$enabledExercises.removeDuplicates().sink { [weak self] enabled in
+        longBreak = model.longBreak
+        model.$enabledExercises.removeDuplicates().sink { [weak self] enabled in
             MainActor.assumeIsolated {
                 guard let self, self.enabledExercises != enabled else { return }
                 self.enabledExercises = enabled
             }
         }
+        .store(in: &subscriptions)
+        model.$longBreak.removeDuplicates().sink { [weak self] settings in
+            MainActor.assumeIsolated {
+                guard let self, self.longBreak != settings else { return }
+                self.longBreak = settings
+            }
+        }
+        .store(in: &subscriptions)
     }
 
     func setExercise(_ exercise: RestExercise, enabled: Bool) {
         model.setExercise(exercise, enabled: enabled)
+    }
+
+    func setLongBreak(_ settings: LongBreakSettings) {
+        model.setLongBreak(settings)
     }
 }
 
@@ -427,28 +441,95 @@ private struct RestExerciseSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("启用的动作")
-                .font(Theme.font(14, .medium))
-                .foregroundStyle(Theme.ink)
-            ForEach(RestExercise.allCases, id: \.self) { exercise in
-                let enabled = selection.enabledExercises.contains(exercise)
-                Toggle(isOn: Binding(
-                    get: { selection.enabledExercises.contains(exercise) },
-                    set: { selection.setExercise(exercise, enabled: $0) }
-                )) {
-                    Text(verbatim: exercise.title)
-                        .font(Theme.font(14, .medium))
-                        .foregroundStyle(Theme.ink)
+            // 长休息放最前面：它决定了下面两类动作各在什么时候轮到
+            longBreakCard
+            VStack(alignment: .leading, spacing: 18) {
+                title("眼睛动作")
+                ForEach(RestExercise.eyeExercises, id: \.self) { exercise in
+                    exerciseToggle(exercise)
                 }
-                .toggleStyle(CuteToggleStyle())
-                .disabled(enabled && selection.enabledExercises.count == 1)
+                title("起身活动")
+                ForEach(RestExercise.bodyActivities, id: \.self) { exercise in
+                    exerciseToggle(exercise)
+                }
+                if selection.enabledExercises.count == 1 {
+                    hint("至少保留一个动作")
+                }
             }
-            if selection.enabledExercises.count == 1 {
-                Text("至少保留一个动作")
-                    .font(Theme.font(12))
-                    .foregroundStyle(Theme.inkSoft)
+            .settingsCard()
+        }
+    }
+
+    private var longBreakCard: some View {
+        let settings = selection.longBreak
+        return VStack(alignment: .leading, spacing: 18) {
+            Toggle(isOn: Binding(
+                get: { selection.longBreak.isEnabled },
+                set: { enabled in
+                    var updated = selection.longBreak
+                    updated.isEnabled = enabled
+                    selection.setLongBreak(updated)
+                }
+            )) { title("长休息") }
+            .toggleStyle(CuteToggleStyle())
+            if settings.isEnabled {
+                hint("每隔几轮专注，用一次更长的休息做起身活动")
+                CuteStepper(
+                    title: "每隔", unit: String(localized: "轮"),
+                    value: Binding(
+                        get: { selection.longBreak.everyRounds },
+                        set: { rounds in
+                            var updated = selection.longBreak
+                            updated.everyRounds = rounds
+                            selection.setLongBreak(updated)
+                        }
+                    ),
+                    range: LongBreakSettings.roundsRange, step: 1
+                )
+                CuteStepper(
+                    title: "时长", unit: String(localized: "分钟"),
+                    value: Binding(
+                        get: { selection.longBreak.minutes },
+                        set: { minutes in
+                            var updated = selection.longBreak
+                            updated.minutes = minutes
+                            selection.setLongBreak(updated)
+                        }
+                    ),
+                    range: LongBreakSettings.minutesRange, step: 1
+                )
+            } else {
+                hint("关闭后，起身活动会和眼睛动作一起轮换")
             }
         }
+        .settingsCard()
+    }
+
+    private func exerciseToggle(_ exercise: RestExercise) -> some View {
+        let enabled = selection.enabledExercises.contains(exercise)
+        return Toggle(isOn: Binding(
+            get: { selection.enabledExercises.contains(exercise) },
+            set: { selection.setExercise(exercise, enabled: $0) }
+        )) {
+            Text(verbatim: exercise.title)
+                .font(Theme.font(14, .medium))
+                .foregroundStyle(Theme.ink)
+        }
+        .toggleStyle(CuteToggleStyle())
+        .disabled(enabled && selection.enabledExercises.count == 1)
+    }
+
+    private func title(_ key: LocalizedStringKey) -> some View {
+        Text(key)
+            .font(Theme.font(14, .medium))
+            .foregroundStyle(Theme.ink)
+    }
+
+    private func hint(_ key: LocalizedStringKey) -> some View {
+        Text(key)
+            .font(Theme.font(12))
+            .foregroundStyle(Theme.inkSoft)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

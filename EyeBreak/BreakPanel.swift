@@ -53,7 +53,7 @@ final class BreakPanelController {
                 element: NSApp as Any,
                 notification: .announcementRequested,
                 userInfo: [
-                    .announcement: String(localized: "休息一下眼睛吧"),
+                    .announcement: model.isLongBreak ? String(localized: "起来活动一下吧") : String(localized: "休息一下眼睛吧"),
                     .priority: NSAccessibilityPriorityLevel.medium.rawValue
                 ]
             )
@@ -186,16 +186,29 @@ final class BreakPanelPresentation: ObservableObject {
     struct Configuration: Equatable {
         var phase: EyeBreakModel.Phase
         var exercise: RestExercise
-        var restDuration: TimeInterval
+        var isLongBreak: Bool
+        /// 这次休息会用的时长：长休息用长休息设置，否则用眺望时长
+        var breakDuration: TimeInterval
     }
 
     @Published private(set) var configuration: Configuration
     private var subscription: AnyCancellable?
 
     init(model: EyeBreakModel) {
-        configuration = Configuration(phase: model.phase, exercise: model.exercise, restDuration: model.restDuration)
-        subscription = Publishers.CombineLatest3(model.$phase, model.$exerciseIndex, model.$restDuration)
-            .map { Configuration(phase: $0, exercise: RestExercise.at(max(0, $1)), restDuration: $2) }
+        configuration = Configuration(
+            phase: model.phase, exercise: model.exercise, isLongBreak: model.isLongBreak, breakDuration: model.plannedBreakDuration
+        )
+        subscription = Publishers.CombineLatest(
+            Publishers.CombineLatest4(model.$phase, model.$exerciseIndex, model.$restDuration, model.$isLongBreak),
+            model.$longBreak
+        )
+            .map { basics, longBreak in
+                let (phase, index, restDuration, isLongBreak) = basics
+                return Configuration(
+                    phase: phase, exercise: RestExercise.at(max(0, index)), isLongBreak: isLongBreak,
+                    breakDuration: isLongBreak ? longBreak.duration : restDuration
+                )
+            }
             .removeDuplicates()
             .sink { [weak self] configuration in
                 MainActor.assumeIsolated {
@@ -283,11 +296,13 @@ struct BreakPanelView: View {
     private var awaiting: some View {
         VStack(spacing: 0) {
             TomatoCharacter(motion: presentation.configuration.exercise.motion, size: 76, time: animationTime, loops: 2, replayID: replayID)
-            Text("休息一下眼睛吧")
+            Text(verbatim: presentation.configuration.isLongBreak ? String(localized: "起来活动一下吧") : String(localized: "休息一下眼睛吧"))
                 .font(Theme.font(19, .bold))
                 .foregroundStyle(Theme.ink)
                 .padding(.top, 10)
-            Text("\(presentation.configuration.exercise.instruction)，放松 \(Int(presentation.configuration.restDuration)) 秒")
+            Text(verbatim: Self.breakHint(
+                instruction: presentation.configuration.exercise.instruction, duration: presentation.configuration.breakDuration
+            ))
                 .font(Theme.font(13))
                 .foregroundStyle(Theme.inkSoft)
                 .padding(.top, 4)
@@ -315,6 +330,26 @@ struct BreakPanelView: View {
                 .buttonStyle(PillButtonStyle(kind: .plain))
         }
     }
+
+    /// 提醒面板的一句说明：整分钟的长休息说「放松 N 分钟」，其余按秒。
+    static func breakHint(instruction: String, duration: TimeInterval) -> String {
+        let seconds = Int(duration)
+        if seconds >= 60, seconds % 60 == 0 {
+            return String(localized: "\(instruction)，放松 \(seconds / 60) 分钟")
+        }
+        return String(localized: "\(instruction)，放松 \(seconds) 秒")
+    }
+
+    /// 休息倒计时文字：长休息超过一分钟时显示分和秒。
+    static func remainingText(seconds: Int) -> String {
+        seconds >= 60 ? String(localized: "还剩 \(seconds / 60) 分 \(seconds % 60) 秒") : String(localized: "还剩 \(seconds) 秒")
+    }
+
+    static func remainingAccessibilityText(seconds: Int) -> String {
+        seconds >= 60
+            ? String(localized: "休息中，剩余 \(seconds / 60) 分 \(seconds % 60) 秒")
+            : String(localized: "休息中，剩余 \(seconds) 秒")
+    }
 }
 
 private struct RestCountdownRing: View {
@@ -326,7 +361,7 @@ private struct RestCountdownRing: View {
             phase: model.phase, duration: model.currentBreakDuration
         ) { Color.clear }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text("休息中，剩余 \(model.remainingSeconds) 秒"))
+            .accessibilityLabel(Text(verbatim: BreakPanelView.remainingAccessibilityText(seconds: model.remainingSeconds)))
     }
 }
 
@@ -334,7 +369,7 @@ private struct RestCountdownText: View {
     @ObservedObject var model: EyeBreakModel
 
     var body: some View {
-        Text("还剩 \(model.remainingSeconds) 秒")
+        Text(verbatim: BreakPanelView.remainingText(seconds: model.remainingSeconds))
             .font(Theme.font(13, .medium))
             .monospacedDigit()
             .foregroundStyle(Theme.inkSoft)

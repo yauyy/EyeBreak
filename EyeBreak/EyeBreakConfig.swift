@@ -86,6 +86,27 @@ enum EyeBreakConfig {
         defaults.set(disabled.map(\.rawValue).sorted(), forKey: disabledExercisesKey)
     }
 
+    private static let longBreakKey = "longBreak"
+
+    /// 长休息设置，默认开启：每 4 轮一次、3 分钟。
+    static var longBreak: LongBreakSettings {
+        get { loadLongBreak(from: .standard) }
+        set { saveLongBreak(newValue, to: .standard) }
+    }
+
+    static func loadLongBreak(from defaults: UserDefaults) -> LongBreakSettings {
+        guard let data = defaults.data(forKey: longBreakKey),
+              let saved = try? JSONDecoder().decode(LongBreakSettings.self, from: data) else {
+            return LongBreakSettings()
+        }
+        return saved.normalized()
+    }
+
+    static func saveLongBreak(_ settings: LongBreakSettings, to defaults: UserDefaults) {
+        guard let data = try? JSONEncoder().encode(settings.normalized()) else { return }
+        defaults.set(data, forKey: longBreakKey)
+    }
+
     /// 提醒音选择，默认「清脆」（Glass）
     static var reminderSound: ReminderSound {
         get { UserDefaults.standard.string(forKey: reminderSoundKey).flatMap(ReminderSound.init(rawValue:)) ?? .glass }

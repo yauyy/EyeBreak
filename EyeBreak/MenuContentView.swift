@@ -156,6 +156,16 @@ struct MenuBody: View {
     }
 
     private var controls: some View {
+        VStack(spacing: 10) {
+            controlButtons
+            if model.phase == .paused {
+                // 暂停后才出现：顺手选一个自动继续的时刻，不用记得回来点「继续」
+                TimedPauseRow(model: model)
+            }
+        }
+    }
+
+    private var controlButtons: some View {
         HStack(spacing: 10) {
             switch model.phase {
             case .offHours:
@@ -254,7 +264,8 @@ final class MenuModelChanges: ObservableObject {
             model.$deferReason.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
             model.$isSnoozing.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
             model.$workInterval.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            model.$restDuration.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher()
+            model.$restDuration.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            model.$timedPause.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher()
         ])
         .sink { [weak self] in self?.revision &+= 1 }
         .store(in: &cancellables)
@@ -272,6 +283,9 @@ final class MenuCountdownState: ObservableObject {
         let workInterval: TimeInterval
         let deferReason: EyeBreakModel.DeferReason?
         let isSnoozing: Bool
+        let isLongBreak: Bool
+        /// 定时暂停时显示的「几点继续」
+        let resumeText: String?
 
         @MainActor init(model: EyeBreakModel) {
             phase = model.phase
@@ -281,6 +295,8 @@ final class MenuCountdownState: ObservableObject {
             workInterval = model.workInterval
             deferReason = model.deferReason
             isSnoozing = model.isSnoozing
+            isLongBreak = model.isLongBreak
+            resumeText = model.timedPauseResumeText
         }
     }
 
@@ -358,6 +374,11 @@ private struct MenuCountdownRing: View {
                         .font(Theme.font(11))
                         .foregroundStyle(Theme.inkSoft)
                 }
+                if let resumeText = snapshot.resumeText {
+                    Text(verbatim: resumeText)
+                        .font(Theme.font(11))
+                        .foregroundStyle(Theme.inkSoft)
+                }
                 if let test = EyeBreakConfig.testWorkInterval, snapshot.workInterval == test {
                     Text("测试 \(Int(test)) 秒")
                         .font(Theme.font(11))
@@ -382,8 +403,8 @@ private struct MenuCountdownRing: View {
             }
             return snapshot.isSnoozing ? String(localized: "稍后提醒") : String(localized: "专注中")
         case .paused: return String(localized: "已暂停")
-        case .awaitingBreak: return String(localized: "该休息啦")
-        case .resting: return String(localized: "休息中")
+        case .awaitingBreak: return snapshot.isLongBreak ? String(localized: "该活动啦") : String(localized: "该休息啦")
+        case .resting: return snapshot.isLongBreak ? String(localized: "长休息中") : String(localized: "休息中")
         case .away: return String(localized: "离开中")
         case .offHours: return String(localized: "工作时段外")
         }
@@ -401,6 +422,58 @@ private struct MenuCountdownRing: View {
         [.idle, .paused, .away, .offHours].contains(snapshot.phase) ? Theme.inkSoft : phaseColor
     }
 
+}
+
+/// 暂停后的「自动继续」选项：选中的胶囊高亮，再点一次取消自动继续。英文放不下时换成两行。
+private struct TimedPauseRow: View {
+    let model: EyeBreakModel
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                label
+                Spacer(minLength: 4)
+                options
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                label
+                options
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var label: some View {
+        Text("自动继续")
+            .font(Theme.font(12))
+            .foregroundStyle(Theme.inkSoft)
+            .fixedSize()
+    }
+
+    private var options: some View {
+        HStack(spacing: 5) {
+            ForEach(TimedPause.allCases, id: \.self) { option in
+                let selected = model.timedPause == option
+                Button {
+                    if selected { model.cancelTimedPause() } else { model.pause(for: option) }
+                } label: {
+                    Text(verbatim: option.title)
+                        .font(Theme.font(11, .semibold))
+                        .lineLimit(1)
+                        .fixedSize()
+                        .foregroundStyle(selected ? .white : Theme.inkSoft)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(selected ? Theme.tomatoFill : Theme.ink.opacity(0.07)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("自动继续：\(option.title)"))
+                .accessibilityHint(selected ? Text("取消自动继续") : Text(""))
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+    }
 }
 
 /// 今日收集的番茄：最多画 8 个小番茄，多出来的用 +N 表示

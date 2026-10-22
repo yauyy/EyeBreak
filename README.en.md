@@ -33,6 +33,10 @@ Requires macOS 13 or later. Universal app for Apple silicon and Intel.
 - **Focus modes**: add an EyeBreak Focus filter to hold reminders during a Focus
 - **Restarts**: the timer state is restored after quitting or rebooting
 
+**Long breaks**: by default every 4th break is a 3-minute long break where the tomato asks you to get up for water or a walk; the short breaks stay eye exercises. Adjust or turn it off under Settings > Break.
+
+**Pause for a while**: after pausing, pick "in 1 h", "in 2 h" or "tomorrow" in the menu and the timer resumes on its own.
+
 **Also included**: today's tomatoes, a seven-day chart, achievements, Shortcuts actions, and in-app updates. Focus and rest lengths are right in the menu; **Settings…** (⌘,) holds appearance (System / Light / Dark), language (System / 简体中文 / English), sounds, the menu bar countdown, open at login, which eye exercises to use, and work hours. Appearance changes immediately; use **Reopen now** to apply a language change. The **Achievements** page in Settings shows all eight badges, their requirements, and your progress.
 
 ## Privacy

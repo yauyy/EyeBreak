@@ -17,6 +17,7 @@ struct DiagnosticSnapshot {
     let overridesSchedule: Bool
     let workSeconds: Int
     let restSeconds: Int
+    let longBreak: String
     let enabledExercises: [String]
     let reminderSound: String
     let schedule: WorkSchedule
@@ -46,6 +47,7 @@ enum DiagnosticReport {
             (String(localized: "覆盖工作时段"), yesNo(snapshot.overridesSchedule)),
             (String(localized: "专注时长（秒）"), String(snapshot.workSeconds)),
             (String(localized: "眺望时长（秒）"), String(snapshot.restSeconds)),
+            (String(localized: "长休息"), snapshot.longBreak),
             (String(localized: "启用的动作"), snapshot.enabledExercises.joined(separator: ", ")),
             (String(localized: "提示音"), snapshot.reminderSound),
             (String(localized: "工作时段已启用"), yesNo(schedule.isEnabled)),
@@ -86,7 +88,13 @@ extension DiagnosticSnapshot {
         switch model.phase {
         case .idle: phase = String(localized: "未在计时")
         case .working: phase = String(localized: "专注中")
-        case .paused: phase = String(localized: "已暂停")
+        case .paused:
+            // 定时暂停带上继续时刻，排查「为什么又自己开始了」时一眼能看到
+            if let resume = model.timedPauseResumeText {
+                phase = String(localized: "已暂停（\(resume)）")
+            } else {
+                phase = String(localized: "已暂停")
+            }
         case .awaitingBreak: phase = String(localized: "等待休息")
         case .resting: phase = String(localized: "休息中")
         case .away: phase = String(localized: "离开中")
@@ -124,6 +132,9 @@ extension DiagnosticSnapshot {
             overridesSchedule: model.isOverridingSchedule,
             workSeconds: Int(model.workInterval),
             restSeconds: Int(model.restDuration),
+            longBreak: model.longBreak.isEnabled
+                ? String(localized: "每 \(model.longBreak.everyRounds) 轮 \(model.longBreak.minutes) 分钟")
+                : String(localized: "关闭"),
             enabledExercises: RestExercise.allCases.filter { model.enabledExercises.contains($0) }.map(\.title),
             reminderSound: sounds.choice.title,
             schedule: schedule.schedule,

@@ -18,6 +18,17 @@ enum RestExercise: Int, CaseIterable, Sendable {
         exercises.isEmpty ? [.lookFar] : exercises
     }
 
+    /// 起身活动要离开座位，开启长休息后只在长休息里轮换；其余是坐着就能做的眼睛动作。
+    var isBodyActivity: Bool {
+        switch self {
+        case .drinkWater, .walk: return true
+        case .lookFar, .blink, .closeEyes, .rollEyes: return false
+        }
+    }
+
+    static var eyeExercises: [RestExercise] { allCases.filter { !$0.isBodyActivity } }
+    static var bodyActivities: [RestExercise] { allCases.filter(\.isBodyActivity) }
+
     /// 休息倒计时中显示的标题
     var title: String {
         switch self {

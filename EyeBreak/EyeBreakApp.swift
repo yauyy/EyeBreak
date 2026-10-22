@@ -67,12 +67,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             reminder: sounds,
             isWorkTime: { [weak schedule] in schedule?.schedule.contains(Date()) ?? true },
             exerciseIndex: EyeBreakConfig.exerciseIndex,
-            enabledExercises: EyeBreakConfig.enabledExercises
+            enabledExercises: EyeBreakConfig.enabledExercises,
+            longBreak: EyeBreakConfig.longBreak
         )
         model.onPreferencesChanged = { work, rest in
             EyeBreakConfig.save(workInterval: work, restDuration: rest)
         }
         model.onEnabledExercisesChanged = { EyeBreakConfig.enabledExercises = $0 }
+        model.onLongBreakChanged = { EyeBreakConfig.longBreak = $0 }
         schedule.onScheduleChanged = { [weak model] in model?.workScheduleDidChange() }
         self.model = model
         IntentHub.shared.model = model

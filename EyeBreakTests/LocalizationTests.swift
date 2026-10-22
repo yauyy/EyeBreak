@@ -45,6 +45,17 @@ struct LocalizationTests {
         ("上次检查更新时间", "Last update check"),
         ("欢迎来到 EyeBreak", "Welcome to EyeBreak"),
         ("知道了", "Got it"),
+        ("起来活动一下吧", "Time to get up and move"),
+        ("长休息", "Long break"),
+        ("长休息中", "Long break"),
+        ("该活动啦", "Time to move"),
+        ("眼睛动作", "Eye exercises"),
+        ("起身活动", "Get-up activities"),
+        ("自动继续", "Resume"),
+        ("1 小时后", "in 1 h"),
+        ("2 小时后", "in 2 h"),
+        ("明天", "tomorrow"),
+        ("明天继续", "Resumes tomorrow"),
     ])
     func englishStrings(key: String, english: String) throws {
         #expect(try englishBundle().localizedString(forKey: key, value: nil, table: nil) == english)
@@ -58,6 +69,12 @@ struct LocalizationTests {
         #expect(String(format: format, drinkWater, 20) == "Get up and sip some water for 20 seconds")
         let walk = try englishBundle().localizedString(forKey: "起身走一走", value: nil, table: nil)
         #expect(String(format: format, walk, 20) == "Get up and walk around for 20 seconds")
+        let minutes = try englishBundle().localizedString(forKey: "%@，放松 %lld 分钟", value: nil, table: nil)
+        #expect(String(format: minutes, walk, 3) == "Get up and walk around for 3 minutes")
+        let remaining = try englishBundle().localizedString(forKey: "还剩 %lld 分 %lld 秒", value: nil, table: nil)
+        #expect(String(format: remaining, 2, 30) == "2 min 30 sec left")
+        let resume = try englishBundle().localizedString(forKey: "%@ 继续", value: nil, table: nil)
+        #expect(String(format: resume, "14:30") == "Resumes at 14:30")
     }
 
     @Test("圆环完整读法有英文版")

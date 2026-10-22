@@ -20,7 +20,8 @@ private final class LayoutClock {
 
 @MainActor
 struct MenuLayoutTests {
-    @Test("156 点圆环下菜单本体中英文最坏组合自然高度不超过 640 点", arguments: ["zh-Hans", "en"], ["snooze", "meeting", "fullscreen", "focus", "paused", "offHours"])
+    // 1.6 起暂停状态多一行「自动继续」选项（约 32 点），上限从 640 放宽到 672，仍远小于常见最小屏幕约 770 点的可用高度。
+    @Test("156 点圆环下菜单本体中英文最坏组合自然高度不超过 672 点", arguments: ["zh-Hans", "en"], ["snooze", "meeting", "fullscreen", "focus", "paused", "pausedTimed", "offHours"])
     func worstNaturalHeight(language: String, state: String) throws {
         let suite = "EyeBreak.MenuLayoutTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -29,7 +30,7 @@ struct MenuLayoutTests {
         let model = EyeBreakModel(
             workInterval: 1200, restDuration: 20, reminder: LayoutReminder(),
             now: { clock.now }, idleTime: { 0 },
-            isInMeeting: { state == "meeting" || state == "paused" }, isFullscreen: { state == "fullscreen" },
+            isInMeeting: { state == "meeting" || state.hasPrefix("paused") }, isFullscreen: { state == "fullscreen" },
             isWorkTime: { clock.isWorkTime },
             usesSystemTimer: false
         )
@@ -44,6 +45,10 @@ struct MenuLayoutTests {
             model.pause()
             #expect(model.phase == .paused)
             #expect(model.deferReason == nil)
+        case "pausedTimed":
+            model.pause(for: .twoHours)
+            #expect(model.phase == .paused)
+            #expect(model.timedPauseResumeText != nil)
         case "offHours":
             clock.isWorkTime = false
             model.tick()
@@ -69,7 +74,7 @@ struct MenuLayoutTests {
         print("MenuBody \(language) \(state): \(size.width) × \(size.height) pt")
         #expect(size.width == 280)
         #expect(size.height > 400)
-        #expect(size.height <= 640)
+        #expect(size.height <= 672)
     }
 }
 

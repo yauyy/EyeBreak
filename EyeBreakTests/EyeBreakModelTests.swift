@@ -735,8 +735,14 @@ struct EyeBreakModelTests {
 
     // MARK: - 休息内容轮换
 
-    @Test("第一次休息是看看远处，之后六个动作依次轮换并循环")
+    /// 1.6 起默认开启长休息，起身活动只在长休息轮换；这组测试验证的是关闭长休息时六个动作一起轮换的旧行为
+    private func disableLongBreak() {
+        model.setLongBreak(LongBreakSettings(isEnabled: false, everyRounds: 4, minutes: 3))
+    }
+
+    @Test("关闭长休息后，第一次休息是看看远处，之后六个动作依次轮换并循环")
     func exercisesRotate() {
+        disableLongBreak()
         var seen: [RestExercise] = []
         model.start()
         for _ in 0...RestExercise.allCases.count {
@@ -750,6 +756,7 @@ struct EyeBreakModelTests {
 
     @Test("关闭喝水后跳过第五项，其余动作继续依次循环")
     func exercisesSkipDisabledDrinkWater() {
+        disableLongBreak()
         model.setExercise(.drinkWater, enabled: false)
         var seen: [RestExercise] = []
         model.start()
@@ -763,6 +770,7 @@ struct EyeBreakModelTests {
 
     @Test("关闭走一走后跳过第六项，已有五个动作继续依次循环")
     func exercisesSkipDisabledWalk() {
+        disableLongBreak()
         model.setExercise(.walk, enabled: false)
         var seen: [RestExercise] = []
         model.start()

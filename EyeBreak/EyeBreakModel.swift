@@ -47,6 +47,12 @@ final class EyeBreakModel: ObservableObject {
         var isSnoozing: Bool?
         /// 本轮专注实际总时长；旧版本缺失时使用当前专注设置
         var roundTotal: TimeInterval?
+        /// 定时暂停的自动继续时刻和所选选项；旧版本缺失时按普通暂停恢复
+        var pausedUntil: Date?
+        var timedPause: TimedPause?
+        /// 等待或进行中的休息是否为长休息，以及距离下次长休息已完成的轮数
+        var isLongBreak: Bool?
+        var roundsSinceLongBreak: Int?
     }
 
     @Published private(set) var phase: Phase = .idle {
@@ -80,6 +86,20 @@ final class EyeBreakModel: ObservableObject {
     /// 只用于选择下一次动作；本次已选中的动作不随设置变化。
     @Published private(set) var enabledExercises: Set<RestExercise>
 
+    /// 长休息设置；修改后从下一次到点的提醒开始生效
+    @Published private(set) var longBreak: LongBreakSettings
+    /// 当前等待或进行中的休息是长休息（稍后提醒期间保持）
+    @Published private(set) var isLongBreak = false
+    /// 上次长休息之后已经完成的专注轮数；稍后提醒不算新的一轮
+    private(set) var roundsSinceLongBreak = 0
+    /// 两类动作各自记住上次轮到谁：长休息插在中间时，眼睛动作接着上次继续，起身活动也能交替
+    private var lastEyeExerciseIndex = -1
+    private var lastBodyExerciseIndex = -1
+    /// 定时暂停：到这个时刻自动继续计时；普通暂停为 nil
+    @Published private(set) var pausedUntil: Date?
+    /// 定时暂停选的是哪个选项，菜单据此高亮
+    @Published private(set) var timedPause: TimedPause?
+
     var exercise: RestExercise { RestExercise.at(max(0, exerciseIndex)) }
 
     /// 休息倒计时自然结束时发出（提前结束、跳过不算），界面据此播放撒花动画
@@ -88,6 +108,8 @@ final class EyeBreakModel: ObservableObject {
     var onPreferencesChanged: ((_ workInterval: TimeInterval, _ restDuration: TimeInterval) -> Void)?
     /// 用户修改了动作设置，交给外部持久化。
     var onEnabledExercisesChanged: ((Set<RestExercise>) -> Void)?
+    /// 用户修改了长休息设置，交给外部持久化。
+    var onLongBreakChanged: ((LongBreakSettings) -> Void)?
     /// 计时状态变化（以及专注中定期）时发出快照，交给外部持久化
     var onSnapshot: ((Snapshot) -> Void)?
 
@@ -152,10 +174,12 @@ final class EyeBreakModel: ObservableObject {
         snoozeInterval: TimeInterval = EyeBreakConfig.snoozeInterval,
         exerciseIndex: Int = -1,
         enabledExercises: Set<RestExercise> = Set(RestExercise.allCases),
+        longBreak: LongBreakSettings = LongBreakSettings(),
         usesSystemTimer: Bool = true
     ) {
         self.exerciseIndex = exerciseIndex
         self.enabledExercises = RestExercise.normalized(enabledExercises)
+        self.longBreak = longBreak.normalized()
         self.workInterval = workInterval
         self.restDuration = restDuration
         self.reminder = reminder
@@ -171,6 +195,7 @@ final class EyeBreakModel: ObservableObject {
         self.usesSystemTimer = usesSystemTimer
         pausedRemaining = workInterval
         remainingSeconds = Self.displaySeconds(workInterval)
+        rememberExercise(index: exerciseIndex)
         if usesSystemTimer { observeSystemEvents() }
     }
 
@@ -189,9 +214,20 @@ final class EyeBreakModel: ObservableObject {
         (phase == .working || phase == .paused) && workInterval != currentRoundTotal
     }
 
-    /// 只有已经开始的休息才会保留旧时长，等待休息时修改立即生效。
+    /// 只有已经开始的休息才会保留旧时长，等待休息时修改立即生效；长休息不用眺望时长。
     var restDurationChangePending: Bool {
-        phase == .resting && restDuration != currentBreakDuration
+        phase == .resting && !isLongBreak && restDuration != currentBreakDuration
+    }
+
+    /// 即将开始（或正在等待）的这次休息会用的时长：长休息用长休息设置，否则用眺望时长。
+    var plannedBreakDuration: TimeInterval {
+        isLongBreak ? longBreak.duration : restDuration
+    }
+
+    /// 定时暂停时菜单里显示的「几点继续」；普通暂停为 nil
+    var timedPauseResumeText: String? {
+        guard phase == .paused, let pausedUntil else { return nil }
+        return TimedPause.resumeText(for: pausedUntil, now: now())
     }
 
     var formattedRemaining: String {
@@ -212,7 +248,7 @@ final class EyeBreakModel: ObservableObject {
     var progress: Double {
         let total: TimeInterval
         switch phase {
-        case .awaitingBreak: total = restDuration
+        case .awaitingBreak: total = plannedBreakDuration
         case .resting: total = currentRestDuration
         case .working, .paused: total = roundTotal
         case .idle, .away, .offHours: total = workInterval
@@ -256,6 +292,31 @@ final class EyeBreakModel: ObservableObject {
         updateDisplay()
     }
 
+    /// 暂停一段时间：专注中先暂停，再设定自动继续的时刻；已暂停时只改时刻。
+    func pause(for choice: TimedPause) {
+        if phase == .working { pause() }
+        guard phase == .paused else { return }
+        timedPause = choice
+        pausedUntil = choice.resumeDate(from: now())
+        // 低频检查就够了：到点晚几十秒继续，比每秒唤醒更省电。
+        startTicker()
+        logger.notice("Paused until \(self.pausedUntil ?? self.now(), privacy: .public)")
+        persist()
+    }
+
+    /// 取消自动继续，保持普通暂停。
+    func cancelTimedPause() {
+        guard phase == .paused, pausedUntil != nil else { return }
+        clearTimedPause()
+        stopTicker()
+        persist()
+    }
+
+    private func clearTimedPause() {
+        if pausedUntil != nil { pausedUntil = nil }
+        if timedPause != nil { timedPause = nil }
+    }
+
     func toggle() {
         phase == .working ? pause() : start()
     }
@@ -281,9 +342,12 @@ final class EyeBreakModel: ObservableObject {
             startBreak()
         case .idle, .working, .paused, .away, .offHours:
             applyUserScheduleOverride()
-            // 稍后提醒仍属于已经选好动作的同一次休息。
+            // 稍后提醒仍属于已经选好动作的同一次休息；主动提前休息按短休息处理，不消耗长休息轮数。
             let continuesSnoozedBreak = isSnoozing && (phase == .working || phase == .paused)
-            if !continuesSnoozedBreak { selectNextExercise() }
+            if !continuesSnoozedBreak {
+                isLongBreak = false
+                selectNextExercise()
+            }
             reminder.cancelPendingReminders()
             deferReason = nil
             beginResting()
@@ -354,6 +418,15 @@ final class EyeBreakModel: ObservableObject {
         onEnabledExercisesChanged?(normalized)
     }
 
+    /// 修改长休息设置：正在等待的长休息按新时长显示，已开始的休息不变。
+    func setLongBreak(_ settings: LongBreakSettings) {
+        let normalized = settings.normalized()
+        guard normalized != longBreak else { return }
+        longBreak = normalized
+        updateDisplay()
+        onLongBreakChanged?(normalized)
+    }
+
     /// 设置已经写入后立即重算；手动覆盖仍由原有工作时段规则处理。
     func workScheduleDidChange() {
         tick()
@@ -387,6 +460,7 @@ final class EyeBreakModel: ObservableObject {
     func refreshExerciseIndexBeforeRestoring(_ index: Int) {
         guard phase == .idle else { return }
         exerciseIndex = index
+        rememberExercise(index: index)
     }
 
     func snapshot() -> Snapshot {
@@ -403,7 +477,9 @@ final class EyeBreakModel: ObservableObject {
         }
         return Snapshot(
             phase: saved, remaining: remaining, savedAt: now(), overridesSchedule: overridesSchedule,
-            isSnoozing: isSnoozing, roundTotal: roundTotal
+            isSnoozing: isSnoozing, roundTotal: roundTotal,
+            pausedUntil: pausedUntil, timedPause: timedPause,
+            isLongBreak: isLongBreak, roundsSinceLongBreak: roundsSinceLongBreak
         )
     }
 
@@ -415,14 +491,29 @@ final class EyeBreakModel: ObservableObject {
         overridesSchedule = snapshot.overridesSchedule ?? false
         let restoredTotal = snapshot.roundTotal.flatMap { $0 > 0 ? $0 : nil } ?? workInterval
         let restoredSnoozing = snapshot.isSnoozing ?? false
+        // 先还原长休息状态，再进入各阶段：开始新一轮会按规则清掉它。
+        roundsSinceLongBreak = max(0, snapshot.roundsSinceLongBreak ?? 0)
+        isLongBreak = snapshot.isLongBreak ?? false
         switch snapshot.phase {
         case .idle:
             return
         case .paused:
+            if let until = snapshot.pausedUntil, until <= now() {
+                // 定时暂停在关闭期间已经到点：离开很久就开始新一轮，否则接着暂停前的进度计时
+                if wasAwayLong {
+                    beginWorking(remaining: workInterval)
+                } else {
+                    beginWorking(remaining: min(max(0, snapshot.remaining), restoredTotal), roundTotal: restoredTotal, snoozing: restoredSnoozing)
+                }
+                break
+            }
             roundTotal = restoredTotal
             isSnoozing = restoredSnoozing
             pausedRemaining = min(max(0, snapshot.remaining), restoredTotal)
+            pausedUntil = snapshot.pausedUntil
+            timedPause = snapshot.pausedUntil == nil ? nil : snapshot.timedPause
             phase = .paused
+            if pausedUntil != nil { startTicker() }
             updateDisplay()
         case .working:
             if wasAwayLong {
@@ -479,7 +570,14 @@ final class EyeBreakModel: ObservableObject {
             return
         case .offHours:
             return
-        case .idle, .paused, .resting:
+        case .paused:
+            // 普通暂停不装计时器；定时暂停到点后自动继续，不算用户覆盖工作时段
+            if let pausedUntil, now() >= pausedUntil {
+                logger.notice("Timed pause ended, resuming work")
+                resumeWorking()
+            }
+            return
+        case .idle, .resting:
             break
         }
 
@@ -502,16 +600,25 @@ final class EyeBreakModel: ObservableObject {
                 return
             }
             deferReason = nil
-            // 稍后提醒再次到点时保持同一个休息内容，其余情况换下一个
-            if !isSnoozing { selectNextExercise() }
+            // 稍后提醒再次到点时保持同一个休息内容（含长休息），其余情况先记一轮，再换下一个动作
+            if !isSnoozing {
+                roundsSinceLongBreak += 1
+                if longBreak.isEnabled, roundsSinceLongBreak >= longBreak.everyRounds {
+                    isLongBreak = true
+                    roundsSinceLongBreak = 0
+                } else {
+                    isLongBreak = false
+                }
+                selectNextExercise()
+            }
             // 先把状态切到"等待休息"并清掉截止时间，再投递提醒：同一轮只可能触发一次，
             // 用户不点「开始休息」时计时保持冻结，也就不会反复提醒。
             // 计时器继续运行，只用于检测用户是否离开。
             self.deadline = nil
             phase = .awaitingBreak
             updateDisplay()
-            logger.notice("Work round finished, awaiting break")
-            reminder.deliverReminder(restDuration: restDuration)
+            logger.notice("Work round finished, awaiting \(self.isLongBreak ? "long" : "short", privacy: .public) break")
+            reminder.deliverReminder(restDuration: plannedBreakDuration)
         case .resting:
             logger.notice("Break completed")
             reminder.playBreakComplete()
@@ -586,7 +693,8 @@ final class EyeBreakModel: ObservableObject {
     }
 
     private func beginResting() {
-        currentRestDuration = restDuration
+        clearTimedPause()
+        currentRestDuration = plannedBreakDuration
         deadline = now().addingTimeInterval(currentRestDuration)
         phase = .resting
         startTicker()
@@ -594,21 +702,41 @@ final class EyeBreakModel: ObservableObject {
     }
 
     /// 沿原有顺序找下一个启用动作，最多检查一轮。
+    /// 开启长休息后，短休息只在眼睛动作里轮换，长休息只在起身活动里轮换；某一类全关时才用全部启用的动作。
     private func selectNextExercise() {
-        let start = exerciseIndex < 0 ? -1 : exerciseIndex % RestExercise.allCases.count
+        var pool = enabledExercises
+        var startIndex = exerciseIndex
+        if longBreak.isEnabled {
+            let preferred = pool.filter { $0.isBodyActivity == isLongBreak }
+            if !preferred.isEmpty {
+                pool = preferred
+                startIndex = isLongBreak ? lastBodyExerciseIndex : lastEyeExerciseIndex
+            }
+        }
+        let start = startIndex < 0 ? -1 : startIndex % RestExercise.allCases.count
         for offset in 1...RestExercise.allCases.count {
             let candidate = RestExercise.at(start + offset)
-            if enabledExercises.contains(candidate) {
+            if pool.contains(candidate) {
                 exerciseIndex = candidate.rawValue
+                rememberExercise(index: candidate.rawValue)
                 return
             }
         }
     }
 
+    private func rememberExercise(index: Int) {
+        guard index >= 0 else { return }
+        let exercise = RestExercise.at(index)
+        if exercise.isBodyActivity { lastBodyExerciseIndex = exercise.rawValue } else { lastEyeExerciseIndex = exercise.rawValue }
+    }
+
     /// 开始新一轮专注计时（默认一整轮）
     private func beginWorking(remaining: TimeInterval, roundTotal total: TimeInterval? = nil, snoozing: Bool = false) {
+        clearTimedPause()
         roundTotal = total ?? workInterval
         isSnoozing = snoozing
+        // 稍后提醒延续同一次休息，长休息标记要留到真正开始休息；新一轮才清掉
+        if !snoozing, isLongBreak { isLongBreak = false }
         deferReason = nil
         deadline = now().addingTimeInterval(max(0, remaining))
         phase = .working
@@ -618,6 +746,7 @@ final class EyeBreakModel: ObservableObject {
 
     /// 从暂停处继续，保留本轮的总时长和是否为稍后提醒
     private func resumeWorking() {
+        clearTimedPause()
         deadline = now().addingTimeInterval(max(0, pausedRemaining))
         phase = .working
         startTicker()
@@ -635,7 +764,7 @@ final class EyeBreakModel: ObservableObject {
         case .idle, .away, .offHours: seconds = workInterval
         case .working, .resting: seconds = currentRemaining()
         case .paused: seconds = pausedRemaining
-        case .awaitingBreak: seconds = restDuration
+        case .awaitingBreak: seconds = plannedBreakDuration
         }
         let display = Self.displaySeconds(seconds)
         if display != remainingSeconds { remainingSeconds = display }
@@ -651,10 +780,13 @@ final class EyeBreakModel: ObservableObject {
         phase == .offHours ? 30 : 1
     }
 
+    /// 定时暂停只需要知道「到点没有」，和工作时段外一样每 30 秒看一次。
+    static let timedPauseTickInterval: TimeInterval = 30
+
     private func startTicker() {
         stopTicker()
         guard usesSystemTimer else { return }
-        let interval = Self.tickInterval(for: phase)
+        let interval = phase == .paused && pausedUntil != nil ? Self.timedPauseTickInterval : Self.tickInterval(for: phase)
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }

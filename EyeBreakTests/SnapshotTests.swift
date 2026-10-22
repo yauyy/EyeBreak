@@ -20,6 +20,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
     case menuDeferred = "menu-deferred-rest-now"
     case menuSnooze = "menu-snooze-pending-hints"
     case menuWorst = "menu-worst-update"
+    case menuPausedTimed = "menu-paused-timed"
     case settingsGeneral = "settings-general"
     case settingsLanguagePending = "settings-language-pending"
     case settingsRest = "settings-rest"
@@ -30,16 +31,17 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
     case panelAwaiting = "panel-awaiting"
     case panelAwaitingDrinkWater = "panel-awaiting-drink-water"
     case panelAwaitingWalk = "panel-awaiting-walk"
+    case panelAwaitingLongBreak = "panel-awaiting-long-break"
     case panelResting = "panel-resting"
     case panelCelebrating = "panel-celebrating"
     case onboarding
 
     var width: CGFloat {
         switch self {
-        case .menuCollapsed, .menuWeek, .menuDeferred, .menuSnooze, .menuWorst: 280
+        case .menuCollapsed, .menuWeek, .menuDeferred, .menuSnooze, .menuWorst, .menuPausedTimed: 280
         case .settingsGeneral, .settingsLanguagePending, .settingsRest, .settingsSchedule,
              .settingsAchievements, .settingsAbout, .settingsScheduleEnabled: 560
-        case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelResting, .panelCelebrating: 300
+        case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelAwaitingLongBreak, .panelResting, .panelCelebrating: 300
         case .onboarding: 460
         }
     }
@@ -48,7 +50,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
         switch self {
         case .settingsGeneral, .settingsLanguagePending, .settingsRest, .settingsSchedule,
              .settingsAchievements, .settingsAbout, .settingsScheduleEnabled: 480
-        case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelResting, .panelCelebrating: 264
+        case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelAwaitingLongBreak, .panelResting, .panelCelebrating: 264
         default: nil
         }
     }
@@ -57,6 +59,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
         switch self {
         case .panelAwaitingDrinkWater: .drinkWater
         case .panelAwaitingWalk: .walk
+        case .panelAwaitingLongBreak: .drinkWater
         default: .lookFar
         }
     }
@@ -130,6 +133,8 @@ private final class SnapshotFixture {
             isInMeeting: { scene == .menuDeferred }, isFullscreen: { false },
             isWorkTime: { true },
             exerciseIndex: scene.exercise.rawValue - 1,
+            // 开启长休息后短休息只轮换眼睛动作；单独展示喝水、走路面板的场景关掉长休息，直接轮到它们
+            longBreak: LongBreakSettings(isEnabled: scene != .panelAwaitingDrinkWater && scene != .panelAwaitingWalk),
             usesSystemTimer: false
         )
         updates.setSnapshotState(availableVersion: scene == .menuWorst ? "1.4.0" : nil)
@@ -152,11 +157,27 @@ private final class SnapshotFixture {
             model.snooze()
             model.setWorkInterval(1500)
             #expect(model.isSnoozing)
-        case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelResting, .panelCelebrating:
+        case .menuPausedTimed:
+            model.start()
+            clock.now += 90
+            model.tick()
+            model.pause(for: .twoHours)
+            #expect(model.timedPause == .twoHours)
+        case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelAwaitingLongBreak, .panelResting, .panelCelebrating:
+            // 长休息场景：前三轮直接跳过休息，第四轮到点时应为长休息并轮到起身活动
+            if scene == .panelAwaitingLongBreak {
+                for _ in 0..<3 {
+                    model.start()
+                    clock.now += 1200
+                    model.tick()
+                    model.skipBreak()
+                }
+            }
             model.start()
             clock.now += 1200
             model.tick()
             #expect(model.exercise == scene.exercise)
+            #expect(model.isLongBreak == (scene == .panelAwaitingLongBreak))
             if scene == .panelResting {
                 model.startBreak()
                 clock.now += 7
@@ -178,7 +199,7 @@ private final class SnapshotFixture {
 
     func content(for scene: SnapshotScene) -> AnyView {
         switch scene {
-        case .menuCollapsed, .menuWeek, .menuDeferred, .menuSnooze, .menuWorst:
+        case .menuCollapsed, .menuWeek, .menuDeferred, .menuSnooze, .menuWorst, .menuPausedTimed:
             return AnyView(MenuBody(
                 model: model, stats: stats, updates: updates, schedule: schedule,
                 showWeekStats: .constant(scene == .menuWeek || scene == .menuWorst),
@@ -199,10 +220,10 @@ private final class SnapshotFixture {
                 updates: updates, schedule: schedule, appearance: appearance, language: language,
                 presentation: presentation, onReplayOnboarding: {}
             ))
-        case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelResting, .panelCelebrating:
+        case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelAwaitingLongBreak, .panelResting, .panelCelebrating:
             return AnyView(BreakPanelView(
                 model: model, state: panelState, stats: stats,
-                animationTime: scene == .panelAwaitingWalk ? 0.45 : (scene == .panelAwaitingDrinkWater ? 1.4 : 1.8)
+                animationTime: scene.exercise == .walk ? 0.45 : (scene.exercise == .drinkWater ? 1.4 : 1.8)
             ))
         case .onboarding:
             return AnyView(OnboardingView(model: model, begin: {}, dismiss: {}))
@@ -266,13 +287,16 @@ struct SnapshotTests {
         window.contentView = host
         defer { window.close() }
         // 传统滚动条（「始终显示滚动条」）出现后，内容要再排一次版才会收窄到可见宽度；等尺寸稳定再测量。
+        // 宽度连续两次相同还不够：滚动条可能在之后才出现，要等到内容真正收进可见宽度。
         var lastWidth: CGFloat = -1
-        for _ in 0..<10 {
+        for _ in 0..<20 {
             host.layoutSubtreeIfNeeded()
             await Task.yield()
             host.layoutSubtreeIfNeeded()
-            let width = firstScrollView(in: host)?.documentView?.bounds.width ?? 0
-            if width == lastWidth { break }
+            let scroll = firstScrollView(in: host)
+            let width = scroll?.documentView?.bounds.width ?? 0
+            let visible = scroll?.contentView.bounds.width ?? 0
+            if width > 0, width == lastWidth, width <= visible + 1 { break }
             lastWidth = width
         }
 
@@ -317,13 +341,16 @@ struct SnapshotTests {
         window.contentView = host
         defer { window.close() }
         // 传统滚动条出现后会收窄内容，等待真实可见宽度稳定。
+        // 宽度连续两次相同还不够：滚动条可能在之后才出现，要等到内容真正收进可见宽度。
         var lastWidth: CGFloat = -1
-        for _ in 0..<10 {
+        for _ in 0..<20 {
             host.layoutSubtreeIfNeeded()
             await Task.yield()
             host.layoutSubtreeIfNeeded()
-            let width = firstScrollView(in: host)?.documentView?.bounds.width ?? 0
-            if width == lastWidth { break }
+            let scroll = firstScrollView(in: host)
+            let width = scroll?.documentView?.bounds.width ?? 0
+            let visible = scroll?.contentView.bounds.width ?? 0
+            if width > 0, width == lastWidth, width <= visible + 1 { break }
             lastWidth = width
         }
 

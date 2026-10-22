@@ -4,12 +4,32 @@
     " ": {
       "shouldTranslate": false
     },
+    "%@ 继续": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resumes at %@"
+          }
+        }
+      }
+    },
     "%@，剩余 %lld 分 %lld 秒": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "%1$@, %2$lld minutes and %3$lld seconds remaining"
+          }
+        }
+      }
+    },
+    "%@，放松 %lld 分钟": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ for %2$lld minutes"
           }
         }
       }
@@ -49,6 +69,26 @@
     },
     "+%lld": {
       "shouldTranslate": false
+    },
+    "1 小时后": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "in 1 h"
+          }
+        }
+      }
+    },
+    "2 小时后": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "in 2 h"
+          }
+        }
+      }
     },
     "App 版本": {
       "localizations": {
@@ -373,6 +413,16 @@
         }
       }
     },
+    "休息中，剩余 %lld 分 %lld 秒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resting, %1$lld minutes and %2$lld seconds remaining"
+          }
+        }
+      }
+    },
     "休息中，剩余 %lld 秒": {
       "localizations": {
         "en": {
@@ -453,6 +503,16 @@
         }
       }
     },
+    "关闭后，起身活动会和眼睛动作一起轮换": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When off, get-up activities rotate together with the eye exercises"
+          }
+        }
+      }
+    },
     "准备好了吗": {
       "localizations": {
         "en": {
@@ -529,6 +589,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cancel"
+          }
+        }
+      }
+    },
+    "取消自动继续": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel auto-resume"
           }
         }
       }
@@ -729,6 +799,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Paused"
+          }
+        }
+      }
+    },
+    "已暂停（%@）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paused (%@)"
           }
         }
       }
@@ -983,6 +1063,36 @@
         }
       }
     },
+    "时长": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Length"
+          }
+        }
+      }
+    },
+    "明天": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tomorrow"
+          }
+        }
+      }
+    },
+    "明天继续": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resumes tomorrow"
+          }
+        }
+      }
+    },
     "是": {
       "localizations": {
         "en": {
@@ -1149,6 +1259,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Welcome to EyeBreak"
+          }
+        }
+      }
+    },
+    "每 %lld 轮 %lld 分钟": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every %1$lld rounds, %2$lld minutes"
+          }
+        }
+      }
+    },
+    "每隔": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every"
+          }
+        }
+      }
+    },
+    "每隔几轮专注，用一次更长的休息做起身活动": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every few focus rounds, take a longer break with a get-up activity"
           }
         }
       }
@@ -1329,6 +1469,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Roll your eyes slowly"
+          }
+        }
+      }
+    },
+    "眼睛动作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eye exercises"
           }
         }
       }
@@ -1543,6 +1693,26 @@
         }
       }
     },
+    "自动继续": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume"
+          }
+        }
+      }
+    },
+    "自动继续：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-resume %@"
+          }
+        }
+      }
+    },
     "至少保留一个动作": {
       "localizations": {
         "en": {
@@ -1653,6 +1823,16 @@
         }
       }
     },
+    "该活动啦": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time to move"
+          }
+        }
+      }
+    },
     "语言": {
       "localizations": {
         "en": {
@@ -1683,12 +1863,32 @@
         }
       }
     },
+    "起来活动一下吧": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time to get up and move"
+          }
+        }
+      }
+    },
     "起身喝几口水": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Get up and sip some water"
+          }
+        }
+      }
+    },
+    "起身活动": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get-up activities"
           }
         }
       }
@@ -1753,6 +1953,16 @@
         }
       }
     },
+    "轮": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rounds"
+          }
+        }
+      }
+    },
     "轻柔": {
       "localizations": {
         "en": {
@@ -1769,6 +1979,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gently close your eyes"
+          }
+        }
+      }
+    },
+    "还剩 %lld 分 %lld 秒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld min %2$lld sec left"
           }
         }
       }
@@ -1929,6 +2149,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show welcome guide"
+          }
+        }
+      }
+    },
+    "长休息": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long break"
+          }
+        }
+      }
+    },
+    "长休息中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long break"
           }
         }
       }

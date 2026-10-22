@@ -10,6 +10,7 @@ struct DiagnosticsTests {
             appearanceMode: "fixture-appearance", languageSetting: "English",
             phase: "fixture-phase", deferReason: "fixture-reason", isSnoozing: true,
             overridesSchedule: true, workSeconds: 1200, restSeconds: 20,
+            longBreak: "fixture-long-break",
             enabledExercises: ["fixture-exercise"], reminderSound: "fixture-sound",
             schedule: WorkSchedule(isEnabled: true, startHour: 9, endHour: 19, weekdaysOnly: true),
             launchAtLogin: "fixture-login", automaticUpdates: true,
@@ -28,6 +29,7 @@ struct DiagnosticsTests {
             String(localized: "当前阶段"), String(localized: "推迟原因"),
             String(localized: "稍后提醒中"), String(localized: "覆盖工作时段"),
             String(localized: "专注时长（秒）"), String(localized: "眺望时长（秒）"),
+            String(localized: "长休息"),
             String(localized: "启用的动作"), String(localized: "提示音"),
             String(localized: "工作时段已启用"), String(localized: "工作开始时间"),
             String(localized: "工作结束时间"), String(localized: "仅工作日"),
@@ -39,7 +41,7 @@ struct DiagnosticsTests {
         for label in labels {
             #expect(lines.contains { $0.hasPrefix(label + ": ") })
         }
-        for value in ["1.3.2", "macOS-fixture", "Apple Silicon", "fixture-appearance", "English", "fixture-phase", "fixture-reason", "1200", "20", "fixture-exercise", "fixture-sound", "9:00", "19:00", "fixture-login", "1970-01-01T00:00:00Z"] {
+        for value in ["1.3.2", "macOS-fixture", "Apple Silicon", "fixture-appearance", "English", "fixture-phase", "fixture-reason", "1200", "20", "fixture-long-break", "fixture-exercise", "fixture-sound", "9:00", "19:00", "fixture-login", "1970-01-01T00:00:00Z"] {
             #expect(text.contains(value))
         }
     }
@@ -95,5 +97,6 @@ struct DiagnosticsTests {
         #expect(captured.restSeconds == 20)
         #expect(captured.appearanceMode == AppearanceMode.dark.title)
         #expect(captured.languageSetting == "English")
+        #expect(captured.longBreak == String(localized: "每 \(4) 轮 \(3) 分钟"))
     }
 }
