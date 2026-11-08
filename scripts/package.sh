@@ -53,8 +53,13 @@ check_build_number() {
   local feed_xml version_count version_value version_index latest_build=0
   local version_xpath="//*[local-name()='version' and namespace-uri()='http://www.andymatuschak.org/xml-namespaces/sparkle'] | //@*[local-name()='version' and namespace-uri()='http://www.andymatuschak.org/xml-namespaces/sparkle']"
   if ! feed_xml="$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 45 "$latest_feed")"; then
-    echo "错误：无法读取线上 appcast，未能确认最新构建号，已停止打包。" >&2
-    exit 1
+    # GitHub 的公开下载重定向可能暂时返回 5xx；API 仍读取同一仓库 latest Release 的同名资产。
+    echo "提示：公开下载地址不可用，尝试通过 GitHub API 读取正式 appcast。" >&2
+    if ! command -v gh >/dev/null 2>&1 \
+        || ! feed_xml="$(gh release download --repo yauyy/EyeBreak --pattern appcast.xml --output -)"; then
+      echo "错误：无法读取线上 appcast，未能确认最新构建号，已停止打包。" >&2
+      exit 1
+    fi
   fi
   if ! printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --noout - 2>/dev/null; then
     echo "错误：线上 appcast XML 解析失败，已停止打包。" >&2
