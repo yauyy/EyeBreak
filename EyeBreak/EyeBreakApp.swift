@@ -36,12 +36,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let launchAtLogin: LaunchAtLogin
     let stats: TomatoStats
     let updates: AppUpdater
+    let reminderChains: ReminderChainStore
+    let chainScheduler: ReminderChainScheduler
     weak var menuWindow: NSWindow?
     private let shouldShowOnboarding: Bool
     private var settingsWindow: SettingsWindowController?
     private var onboardingWindow: OnboardingWindowController?
     private var shortcutMonitor: Any?
     private var breakPanel: BreakPanelController?
+    private var chainPanel: ReminderChainPanelController?
     private var startupTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
 
@@ -80,6 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         IntentHub.shared.model = model
         self.sounds = sounds
         self.schedule = schedule
+        let reminderChains = ReminderChainStore(defaults: defaults)
+        self.reminderChains = reminderChains
+        chainScheduler = ReminderChainScheduler(store: reminderChains, defaults: defaults)
         super.init()
         language.beforeReopen = { [weak model] in
             guard let model else { return }
@@ -127,6 +133,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { EyeBreakConfig.exerciseIndex = $0 }
             .store(in: &cancellables)
         breakPanel = BreakPanelController(model: model, stats: stats)
+        chainPanel = ReminderChainPanelController(scheduler: chainScheduler)
+        chainScheduler.onReminder = { [weak sounds] in sounds?.deliverReminder(restDuration: 0) }
+        chainScheduler.start()
         if EyeBreakConfig.autoStart {
             model.startAutomatically()
         } else if let snapshot = EyeBreakConfig.loadSnapshot() {
@@ -158,6 +167,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startupTask?.cancel()
         if let shortcutMonitor { NSEvent.removeMonitor(shortcutMonitor) }
         model.shutdown()
+        chainScheduler.shutdown()
+        chainPanel?.shutdown()
         if language.isReopening {
             // shutdown 的最后一份快照可能晚于启动新进程，再同步一次供其接管。
             RelaunchHandoff.synchronizePreferences()
@@ -171,6 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 model: model, launchAtLogin: launchAtLogin, stats: stats,
                 sounds: sounds, updates: updates, schedule: schedule,
                 appearance: appearance, language: language,
+                reminderChains: reminderChains,
                 onReplayOnboarding: { [weak self] in self?.showOnboarding() }
             )
         }

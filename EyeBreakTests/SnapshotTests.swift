@@ -25,6 +25,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
     case settingsLanguagePending = "settings-language-pending"
     case settingsRest = "settings-rest"
     case settingsSchedule = "settings-schedule"
+    case settingsReminders = "settings-reminders"
     case settingsAchievements = "settings-achievements"
     case settingsAbout = "settings-about"
     case settingsScheduleEnabled = "settings-schedule-enabled"
@@ -40,7 +41,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
         switch self {
         case .menuCollapsed, .menuWeek, .menuDeferred, .menuSnooze, .menuWorst, .menuPausedTimed: 280
         case .settingsGeneral, .settingsLanguagePending, .settingsRest, .settingsSchedule,
-             .settingsAchievements, .settingsAbout, .settingsScheduleEnabled: 560
+             .settingsReminders, .settingsAchievements, .settingsAbout, .settingsScheduleEnabled: 560
         case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelAwaitingLongBreak, .panelResting, .panelCelebrating: 300
         case .onboarding: 460
         }
@@ -49,7 +50,7 @@ private enum SnapshotScene: String, CaseIterable, Sendable {
     var fixedHeight: CGFloat? {
         switch self {
         case .settingsGeneral, .settingsLanguagePending, .settingsRest, .settingsSchedule,
-             .settingsAchievements, .settingsAbout, .settingsScheduleEnabled: 480
+             .settingsReminders, .settingsAchievements, .settingsAbout, .settingsScheduleEnabled: 480
         case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelAwaitingLongBreak, .panelResting, .panelCelebrating: 264
         default: nil
         }
@@ -89,6 +90,7 @@ private final class SnapshotFixture {
     let stats: TomatoStats
     let updates = AppUpdater()
     let schedule: WorkScheduleSettings
+    let reminderChains: ReminderChainStore
     let appearance: AppearanceSettings
     let language: LanguageSettings
     let launchAtLogin = LaunchAtLogin(refreshesSystemStatus: false)
@@ -124,6 +126,13 @@ private final class SnapshotFixture {
         defaults.set(false, forKey: EyeBreakConfig.showMenuBarTimeKey)
         stats = TomatoStats(defaults: defaults, now: { initialDate }, calendar: calendar)
         schedule = WorkScheduleSettings(defaults: defaults)
+        reminderChains = ReminderChainStore(defaults: defaults)
+        if scene == .settingsReminders {
+            try reminderChains.save(ReminderChain(title: "晨间安排", steps: [
+                ReminderChainStep(title: "下一件事", intervalMinutes: 5),
+                ReminderChainStep(title: "最后一步", intervalMinutes: 10)
+            ]))
+        }
         schedule.schedule = WorkSchedule(isEnabled: scene == .settingsScheduleEnabled, startHour: 9, endHour: 19, weekdaysOnly: true)
         // 提醒前固定轮换位置，动作专用场景直接选中对应动作。
         let clock = SnapshotClock(now: initialDate)
@@ -207,10 +216,11 @@ private final class SnapshotFixture {
                 showsAllPendingHintsForTesting: scene == .menuSnooze || scene == .menuWorst
             ))
         case .settingsGeneral, .settingsLanguagePending, .settingsRest, .settingsSchedule,
-             .settingsAchievements, .settingsAbout, .settingsScheduleEnabled:
+             .settingsReminders, .settingsAchievements, .settingsAbout, .settingsScheduleEnabled:
             switch scene {
             case .settingsRest: presentation.section = .rest
             case .settingsSchedule, .settingsScheduleEnabled: presentation.section = .schedule
+            case .settingsReminders: presentation.section = .reminders
             case .settingsAchievements: presentation.section = .achievements
             case .settingsAbout: presentation.section = .about
             default: presentation.section = .general
@@ -218,7 +228,7 @@ private final class SnapshotFixture {
             return AnyView(SettingsContentView(
                 model: model, launchAtLogin: launchAtLogin, stats: stats, sounds: sounds,
                 updates: updates, schedule: schedule, appearance: appearance, language: language,
-                presentation: presentation, onReplayOnboarding: {}
+                presentation: presentation, reminderChains: reminderChains, onReplayOnboarding: {}
             ))
         case .panelAwaiting, .panelAwaitingDrinkWater, .panelAwaitingWalk, .panelAwaitingLongBreak, .panelResting, .panelCelebrating:
             return AnyView(BreakPanelView(
@@ -239,19 +249,19 @@ private final class SnapshotClock {
 
 @MainActor
 struct SnapshotTests {
-    @Test("五个设置标签的中英文完整文字在 560 点窗口内有足够空间", arguments: ["zh-Hans", "en"])
+    @Test("六个设置标签的中英文完整文字在 560 点窗口内有足够空间", arguments: ["zh-Hans", "en"])
     private func settingsTabsHaveRoom(language: String) throws {
         let titles: [String]
         if language == "en" {
             let path = try #require(Bundle.main.path(forResource: "en", ofType: "lproj"))
             let bundle = try #require(Bundle(path: path))
-            titles = ["通用", "休息", "工作时段", "成就", "关于"].map {
+            titles = ["通用", "休息", "工作时段", "连环提醒", "成就", "关于"].map {
                 bundle.localizedString(forKey: $0, value: nil, table: nil)
             }
         } else {
-            titles = ["通用", "休息", "工作时段", "成就", "关于"]
+            titles = ["通用", "休息", "工作时段", "连环提醒", "成就", "关于"]
         }
-        #expect(SettingsSection.allCases.count == 5)
+        #expect(SettingsSection.allCases.count == 6)
         // 按产品使用的圆体字号测量完整标签，预留每项左右 8 点、外框和标签间距。
         let textWidths = titles.map { title in
             let label = NSHostingView(rootView: Text(verbatim: title)
@@ -267,7 +277,7 @@ struct SnapshotTests {
     }
 
     @Test("通用、语言待生效和成就页保持固定窗口并在内部滚动", arguments: [
-        SnapshotScene.settingsGeneral, .settingsLanguagePending, .settingsAchievements
+        SnapshotScene.settingsGeneral, .settingsLanguagePending, .settingsAchievements, .settingsReminders
     ], SnapshotAppearance.allCases)
     private func enhancedSettingsKeepFixedWindow(scene: SnapshotScene, appearance: SnapshotAppearance) async throws {
         let fixture = try SnapshotFixture(scene: scene)

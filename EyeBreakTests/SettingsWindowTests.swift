@@ -7,6 +7,23 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct SettingsWindowTests {
+    @Test("连环提醒正常设置入口共享存储，关闭重开保留分区和计划")
+    func reminderSettingsEntrySharesStore() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        fixture.controller.show(section: .reminders)
+        let host = try #require(fixture.controller.window?.contentViewController as? NSHostingController<SettingsContentView>)
+        #expect(host.rootView.presentation.section == .reminders)
+        let store = host.rootView.reminderChains
+        try store.save(ReminderChain(title: "晨间安排", steps: [ReminderChainStep(title: "下一件事")]))
+        fixture.controller.close()
+        fixture.controller.show()
+        let reopened = try #require(fixture.controller.window?.contentViewController as? NSHostingController<SettingsContentView>)
+        #expect(reopened.rootView.presentation.section == .reminders)
+        #expect(reopened.rootView.reminderChains === store)
+        #expect(reopened.rootView.reminderChains.chains.first?.title == "晨间安排")
+    }
+
     @Test("各关闭入口释放设置宿主，重开保留所选分区", arguments: ["button", "commandW", "escape", "controller"])
     func closingReleasesContentAndRestoresPresentation(method: String) async throws {
         let fixture = try Fixture()
@@ -129,6 +146,7 @@ struct SettingsWindowTests {
                 updates: AppUpdater(), schedule: WorkScheduleSettings(defaults: defaults),
                 appearance: AppearanceSettings(defaults: defaults, appliesToApplication: false),
                 language: LanguageSettings(defaults: defaults, domainName: suiteName),
+                reminderChains: ReminderChainStore(defaults: defaults),
                 onReplayOnboarding: {}
             )
         }

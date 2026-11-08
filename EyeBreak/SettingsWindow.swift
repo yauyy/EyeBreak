@@ -7,6 +7,7 @@ enum SettingsSection: CaseIterable, Hashable {
     case general
     case rest
     case schedule
+    case reminders
     case achievements
     case about
 
@@ -15,6 +16,7 @@ enum SettingsSection: CaseIterable, Hashable {
         case .general: return String(localized: "通用")
         case .rest: return String(localized: "休息")
         case .schedule: return String(localized: "工作时段")
+        case .reminders: return String(localized: "连环提醒")
         case .achievements: return String(localized: "成就")
         case .about: return String(localized: "关于")
         }
@@ -74,6 +76,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         schedule: WorkScheduleSettings,
         appearance: AppearanceSettings,
         language: LanguageSettings,
+        reminderChains: ReminderChainStore,
         onReplayOnboarding: @escaping () -> Void
     ) {
         self.launchAtLogin = launchAtLogin
@@ -87,6 +90,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
                 model: model, launchAtLogin: launchAtLogin, stats: stats,
                 sounds: sounds, updates: updates, schedule: schedule,
                 appearance: appearance, language: language, presentation: presentation,
+                reminderChains: reminderChains,
                 onReplayOnboarding: onReplayOnboarding
             ))
         }
@@ -155,6 +159,7 @@ struct SettingsContentView: View {
     @ObservedObject var appearance: AppearanceSettings
     @ObservedObject var language: LanguageSettings
     @ObservedObject var presentation: SettingsPresentation
+    let reminderChains: ReminderChainStore
     let onReplayOnboarding: () -> Void
 
     @AppStorage(EyeBreakConfig.showMenuBarTimeKey) private var showMenuBarTime = false
@@ -234,6 +239,7 @@ struct SettingsContentView: View {
         case .general: generalSettings
         case .rest: RestExerciseSettings(model: model)
         case .schedule: scheduleSettings
+        case .reminders: ReminderChainSettingsView(store: reminderChains)
         case .achievements: AchievementsView(stats: stats)
         case .about: aboutSettings
         }

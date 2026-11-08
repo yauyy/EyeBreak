@@ -132,7 +132,8 @@ struct PerformanceBenchmarkTests {
         let settings: SettingsWindowController? = opensContent ? SettingsWindowController(
             model: fixture.model, launchAtLogin: launchAtLogin, stats: fixture.stats,
             sounds: sounds, updates: fixture.updates, schedule: fixture.schedule,
-            appearance: appearance, language: language, onReplayOnboarding: {}
+            appearance: appearance, language: language,
+            reminderChains: ReminderChainStore(defaults: fixture.defaults), onReplayOnboarding: {}
         ) : nil
         let content: AnyView
         weak var observedMenuWindow: NSWindow?

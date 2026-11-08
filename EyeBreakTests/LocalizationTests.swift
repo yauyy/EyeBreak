@@ -56,6 +56,11 @@ struct LocalizationTests {
         ("2 小时后", "in 2 h"),
         ("明天", "tomorrow"),
         ("明天继续", "Resumes tomorrow"),
+        ("连环提醒", "Routines"),
+        ("新增提醒", "Add routine"),
+        ("添加后续提醒", "Add follow-up reminder"),
+        ("每一步的间隔都需要填写正整数分钟。", "Enter a positive whole number of minutes for every interval."),
+        ("累计间隔必须小于下一次主提醒的间隔。", "The total interval must end before the next first reminder."),
     ])
     func englishStrings(key: String, english: String) throws {
         #expect(try englishBundle().localizedString(forKey: key, value: nil, table: nil) == english)
@@ -75,6 +80,8 @@ struct LocalizationTests {
         #expect(String(format: remaining, 2, 30) == "2 min 30 sec left")
         let resume = try englishBundle().localizedString(forKey: "%@ 继续", value: nil, table: nil)
         #expect(String(format: resume, "14:30") == "Resumes at 14:30")
+        let chain = try englishBundle().localizedString(forKey: "每天 %@ · %lld 条后续提醒", value: nil, table: nil)
+        #expect(String(format: chain, "08:00", 2) == "Daily at 08:00 · 2 follow-ups")
     }
 
     @Test("圆环完整读法有英文版")

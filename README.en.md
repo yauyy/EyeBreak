@@ -37,6 +37,10 @@ Requires macOS 13 or later. Universal app for Apple silicon and Intel.
 
 **Pause for a while**: after pausing, pick "in 1 h", "in 2 h" or "tomorrow" in the menu and the timer resumes on its own.
 
+**Routines**: open **Settings → Routines** to set a daily first reminder and add follow-up reminders at intervals. For example, 08:00, then 5 minutes later, then another 10 minutes later gives 08:00, 08:05 and 08:15. Each interval is relative to the preceding step, with every reminder anchored to the first scheduled time. Acknowledging a reminder does not delay the next one. Reminders may cross midnight but must stay strictly before the next daily first reminder; saving and scheduling both enforce this, including daylight saving changes. New, edited and re-enabled routines start at the next first reminder.
+
+Routines run independently of the eye-break timer and appear in a persistent panel at the top left, using your chosen reminder sound. Keep EyeBreak running: it cannot alert while the app is closed or your Mac is asleep. On return, it shows only the latest due reminder in the current cycle with its original scheduled time, without replaying past cycles.
+
 **Also included**: today's tomatoes, a seven-day chart, achievements, Shortcuts actions, and in-app updates. Focus and rest lengths are right in the menu; **Settings…** (⌘,) holds appearance (System / Light / Dark), language (System / 简体中文 / English), sounds, the menu bar countdown, open at login, which eye exercises to use, and work hours. Appearance changes immediately; use **Reopen now** to apply a language change. The **Achievements** page in Settings shows all eight badges, their requirements, and your progress.
 
 ## Privacy
