@@ -18,6 +18,8 @@ xattr -dr com.apple.quarantine /Applications/EyeBreak.app
 
 Requires macOS 13 or later. Universal app for Apple silicon and Intel.
 
+If the GitHub Release download path returns HTTP 504, the [same signed 1.7 DMG is available from this repository's Raw channel](https://raw.githubusercontent.com/yauyy/EyeBreak/refs/heads/feature/ymy/update-channel/updates/EyeBreak-1.7.dmg). An original 1.6 installation was verified to download, validate, install and relaunch as 1.7 after an explicitly approved feed preference migration. The original Release URL has not been confirmed restored, and other existing clients are not automatically migrated. See the [verification record](docs/verification/20261108-应用内升级验收.md) and [channel instructions](README.md#发布新版本).
+
 ## How it works
 
 1. Click the tomato in the menu bar and press **Start**. A focus round begins (20 minutes by default)

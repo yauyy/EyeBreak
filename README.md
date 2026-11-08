@@ -141,7 +141,7 @@ open ~/Library/Developer/Xcode/DerivedData/EyeBreak-build/Build/Products/Debug/E
 
 发布用的签名私钥由 Sparkle 的 `generate_keys` 生成，保存在发布者 Mac 的钥匙串里（请另外备份），对应的公钥写在构建设置 `SPARKLE_PUBLIC_KEY` 里。
 
-1. 在 Xcode 里修改 `MARKETING_VERSION`（Target → General → Version）；构建号由打包脚本按 git 提交数自动生成
+1. 在 Xcode 里修改 `MARKETING_VERSION`（Target → General → Version），提交并推送源码；构建号默认取 git 提交数，也可用 `BUILD` 指定，但必须严格大于 Release 与 Raw 两个更新源中的最大构建号
 2. 把更新说明写进 `docs/release-notes/<版本号>.md`，它会显示在 App 内的更新窗口里
 3. 打包，生成 DMG 和签好名的更新源 `dist/appcast.xml`（会从钥匙串读取私钥，可能弹出授权）：
 
@@ -149,11 +149,18 @@ open ~/Library/Developer/Xcode/DerivedData/EyeBreak-build/Build/Products/Debug/E
 ./scripts/package.sh
 ```
 
-4. 创建 Release，**同时上传 DMG 和 appcast.xml**。App 读取的更新源地址是 `releases/latest/download/appcast.xml`，永远指向最新一个 Release 里的这个文件：
+4. 先离线检查，再使用统一发布入口同步两个通道。以下以 1.8 为例，`--target` 必须是本次构建所用的、已推送的源码提交 SHA，新 Release 的 tag 会指向此提交：
 
 ```bash
-gh release create v1.3 dist/EyeBreak-1.3.dmg dist/appcast.xml --title "EyeBreak 1.3" --notes-file docs/release-notes/1.3.md
+./scripts/publish.sh 1.8 --check
+./scripts/publish.sh 1.8 --target <源码提交SHA>
 ```
+
+脚本使用现有 `dist/` 产物，不重新打包；也可用 `--dist <目录>` 指定已保存的产物。它会冻结 DMG 和 appcast 快照，使用工程中的公钥验签，检查包内版本、构建号及更新源，然后先发布安装包并从固定 Raw URL 下载核对，再更新 appcast、同步 Release。只有 Raw 和 Release 资产回读一致才报告发布完成。已有同名文件只允许相同字节，禁止覆盖历史安装包；中途失败须保留原产物，用同一命令重试。若线上已有更高构建号，旧产物重试会停止。
+
+本脚本今后正式打包时，App 默认更新源和 appcast 下载地址均使用仓库 `feature/ymy/update-channel` 分支中的 `updates/` 目录。该分支承载已迁移用户的持续更新，**不能删除、改名或强制回退**；每次发版都必须通过上述入口同步，不能只上传 Release。发布通过原子创建远端 `feature/ymy/publish-lock` 分支实现互斥，防止多机运行本脚本时交错发布；正常退出仅清理本任务的锁，崩溃遗留锁须确认任务结束后人工处理。该约束不覆盖绕过脚本的人工修改。
+
+当前 1.7 安装包内的默认 `SUFeedURL` 仍是原 Release 地址；已迁移本机通过持久偏好改用 Raw feed，其他旧客户端不会自动迁移。发布脚本中的 GitHub API 回退只服务于资产校验，不能证明旧客户端的原更新地址恢复。真实应用内下载、验签、安装及数据保留结果见[应用内升级验收](docs/verification/20261108-应用内升级验收.md)，与脚本离线检查、发布回读分别记录。
 
 ## 三、项目结构
 

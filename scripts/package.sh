@@ -8,7 +8,7 @@
 #   SPARKLE_KEY_FILE=path     用文件里的私钥签名（默认从钥匙串读取 generate_keys 生成的私钥）
 #   SPARKLE_PUBLIC_KEY=...    覆盖内置公钥（仅用于本机测试）
 #   SPARKLE_FEED_URL=...      覆盖更新源地址（仅用于本机测试）
-#   DOWNLOAD_URL_PREFIX=...   覆盖 appcast 里的下载地址前缀（仅用于本机测试）
+#   DOWNLOAD_URL_PREFIX=...   覆盖默认 Raw 通道下载地址（仅用于本机测试）
 #   DERIVED_DATA=path         构建目录（默认 ~/Library/Developer/Xcode/DerivedData/EyeBreak-build）。
 #                             不要放在「文稿」「桌面」等受保护的文件夹里，否则每次运行编出来的 App 都会弹访问权限提示
 #
@@ -17,6 +17,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+RAW_CHANNEL="https://raw.githubusercontent.com/yauyy/EyeBreak/refs/heads/feature/ymy/update-channel/updates"
 
 setting() {
   xcodebuild -project EyeBreak.xcodeproj -target EyeBreak -configuration Release -showBuildSettings 2>/dev/null \
@@ -48,39 +49,40 @@ check_build_number() {
     return
   fi
 
-  # 始终检查正式更新源，不能被本机测试用的 SPARKLE_FEED_URL 覆盖。
+  # 两个正式通道都要检查，避免分发中断后构建号倒退；测试 URL 不参与此校验。
   local latest_feed="https://github.com/yauyy/EyeBreak/releases/latest/download/appcast.xml"
-  local feed_xml version_count version_value version_index latest_build=0
+  local feed_url feed_xml version_count version_value version_index latest_build=0
   local version_xpath="//*[local-name()='version' and namespace-uri()='http://www.andymatuschak.org/xml-namespaces/sparkle'] | //@*[local-name()='version' and namespace-uri()='http://www.andymatuschak.org/xml-namespaces/sparkle']"
-  if ! feed_xml="$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 45 "$latest_feed")"; then
-    # GitHub 的公开下载重定向可能暂时返回 5xx；API 仍读取同一仓库 latest Release 的同名资产。
-    echo "提示：公开下载地址不可用，尝试通过 GitHub API 读取正式 appcast。" >&2
-    if ! command -v gh >/dev/null 2>&1 \
-        || ! feed_xml="$(gh release download --repo yauyy/EyeBreak --pattern appcast.xml --output -)"; then
-      echo "错误：无法读取线上 appcast，未能确认最新构建号，已停止打包。" >&2
-      exit 1
+  for feed_url in "$latest_feed" "$RAW_CHANNEL/appcast.xml"; do
+    if ! feed_xml="$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 45 "$feed_url")"; then
+      if [[ "$feed_url" == "$latest_feed" ]] && command -v gh >/dev/null 2>&1; then
+        echo "提示：Release 公开下载地址不可用，通过 GitHub API 读取同一正式 appcast。" >&2
+        feed_xml="$(gh release download --repo yauyy/EyeBreak --pattern appcast.xml --output -)" || {
+          echo "错误：无法读取 Release appcast，已停止打包。" >&2; exit 1
+        }
+      else
+        echo "错误：无法读取正式更新源 $feed_url，已停止打包。" >&2
+        exit 1
+      fi
     fi
-  fi
-  if ! printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --noout - 2>/dev/null; then
-    echo "错误：线上 appcast XML 解析失败，已停止打包。" >&2
-    exit 1
-  fi
-  # 兼容 version 元素和 enclosure 上的 version 属性，两者都按 Sparkle 命名空间读取。
-  if ! version_count="$(printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --xpath "count($version_xpath)" - 2>/dev/null)" \
-      || [[ ! "$version_count" =~ '^[0-9]+$' || "$version_count" == 0 ]]; then
-    echo "错误：线上 appcast 中没有可读取的 sparkle:version，已停止打包。" >&2
-    exit 1
-  fi
-  for (( version_index = 1; version_index <= version_count; version_index++ )); do
-    if ! version_value="$(printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --xpath "string(($version_xpath)[$version_index])" - 2>/dev/null)" \
-        || [[ ! "$version_value" =~ '^[0-9]+$' ]]; then
-      echo "错误：线上 appcast 含有无法解析的 sparkle:version，已停止打包。" >&2
-      exit 1
+    if ! printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --noout - 2>/dev/null; then
+      echo "错误：线上 appcast XML 解析失败，已停止打包。" >&2; exit 1
     fi
-    version_value="$(normalize_build_number "$version_value")"
-    if build_number_is_greater "$version_value" "$latest_build"; then
-      latest_build="$version_value"
+    # 兼容 version 元素和 enclosure 上的 version 属性。
+    if ! version_count="$(printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --xpath "count($version_xpath)" - 2>/dev/null)" \
+        || [[ ! "$version_count" =~ '^[0-9]+$' || "$version_count" == 0 ]]; then
+      echo "错误：线上 appcast 中没有可读取的 sparkle:version，已停止打包。" >&2; exit 1
     fi
+    for (( version_index = 1; version_index <= version_count; version_index++ )); do
+      if ! version_value="$(printf '%s' "$feed_xml" | /usr/bin/xmllint --nonet --xpath "string(($version_xpath)[$version_index])" - 2>/dev/null)" \
+          || [[ ! "$version_value" =~ '^[0-9]+$' ]]; then
+        echo "错误：线上 appcast 含有无法解析的 sparkle:version，已停止打包。" >&2; exit 1
+      fi
+      version_value="$(normalize_build_number "$version_value")"
+      if build_number_is_greater "$version_value" "$latest_build"; then
+        latest_build="$version_value"
+      fi
+    done
   done
   if ! build_number_is_greater "$(normalize_build_number "$BUILD")" "$latest_build"; then
     echo "错误：新构建号 $BUILD 必须严格大于线上最大构建号 $latest_build，已停止打包。" >&2
@@ -94,8 +96,8 @@ VERSION="${VERSION:-$(setting MARKETING_VERSION)}"
 BUILD="${BUILD:-$(git rev-list --count HEAD)}"
 check_build_number
 PUBLIC_KEY="${SPARKLE_PUBLIC_KEY:-$(setting SPARKLE_PUBLIC_KEY)}"
-FEED_URL="${SPARKLE_FEED_URL:-$(setting SPARKLE_FEED_URL)}"
-DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://github.com/yauyy/EyeBreak/releases/download/v$VERSION/}"
+FEED_URL="${SPARKLE_FEED_URL:-$RAW_CHANNEL/appcast.xml}"
+DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-$RAW_CHANNEL/}"
 
 if [[ -z "$PUBLIC_KEY" ]]; then
   echo "错误：工程里还没有配置 SPARKLE_PUBLIC_KEY，打出来的 App 无法自动更新。" >&2
@@ -148,4 +150,5 @@ fi
 rm -rf "$APPCAST_STAGING"
 
 shasum -a 256 "$DMG"
-echo "==> 发布时上传这两个文件：$DMG dist/appcast.xml"
+echo "==> 产物：$DMG dist/appcast.xml"
+echo "==> 使用 scripts/publish.sh $VERSION --target <构建所用源码提交SHA> 同步两个更新通道。"
