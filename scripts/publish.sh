@@ -79,6 +79,17 @@ def api(path, missing=False):
     return json.loads(result.stdout)
 
 
+def find_release(tag):
+    # releases/tags/<tag> 不返回草稿；查不到时再从列表里找，避免重复创建草稿。
+    release = api(f"releases/tags/{tag}", missing=True)
+    if release:
+        return release
+    matches = [r for r in api("releases?per_page=100") if r["tag_name"] == tag]
+    if len(matches) > 1:
+        raise RuntimeError(f"{tag} 有多个 Release（含草稿），请先在 GitHub 上删除多余的再重试")
+    return matches[0] if matches else None
+
+
 def release_asset(release, name, output):
     if not any(a["name"] == name for a in release["assets"]):
         return False
@@ -198,7 +209,7 @@ def publish(args, scratch, dmg, feed, candidate, build):
     push_urls = run("git", "remote", "get-url", "--push", "--all", "origin").stdout.decode().splitlines()
     if not push_urls or any(url.removesuffix(".git") != origin for url in push_urls):
         raise RuntimeError("origin 的推送地址与已校验的官方仓库地址不同，拒绝发布")
-    release = api(f"releases/tags/{tag}", missing=True)
+    release = find_release(tag)
     target = None
     incomplete = release is None or release["draft"] or release["prerelease"] or not {dmg.name, feed.name}.issubset({a["name"] for a in release["assets"]})
     if incomplete or args.target:
@@ -257,11 +268,13 @@ def publish(args, scratch, dmg, feed, candidate, build):
         readback(f"{RAW}/appcast.xml", feed, scratch / "raw.xml")
         # Raw 已可能发布；后续任何失败都保留产物，重试补齐 Release。
         check_latest(candidate, build, scratch)
-        release = api(f"releases/tags/{tag}", missing=True)
+        release = find_release(tag)
         if release is None:
             run("gh", "release", "create", tag, "--repo", REPO, "--target", target,
                 "--draft", "--title", f"EyeBreak {args.version}", "--notes-file", str(notes))
-            release = api(f"releases/tags/{tag}")
+            release = find_release(tag)
+            if release is None:
+                raise RuntimeError("Release 草稿创建后读取不到，请稍后用相同命令重试")
         check_assets(release)
         names = {a["name"] for a in release["assets"]}
         for artifact in (dmg, feed):
