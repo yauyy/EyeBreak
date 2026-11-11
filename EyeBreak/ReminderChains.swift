@@ -115,7 +115,7 @@ final class ReminderChainStore: ObservableObject {
     fileprivate struct Entry: Codable, Equatable {
         var chain: ReminderChain
         var revision: UUID
-        /// 只允许此时刻之后开始的新一轮；时区变化后仍按当地每天的主时间计算。
+        /// 只提醒计划时间晚于此时刻的步骤：保存、修改或重新启用后，本轮剩余步骤仍会提醒。
         var startsAfter: Date
     }
 
@@ -363,10 +363,12 @@ final class ReminderChainScheduler: ObservableObject {
             }
             guard chain.isEnabled, chain.basicValidationMessage == nil,
                   let cycle = chain.cycle(containing: date, calendar: calendar),
-                  cycle.start > entry.startsAfter,
+                  cycle.end > entry.startsAfter,
                   TimeInterval(chain.totalIntervalMinutes) * 60 < cycle.end.timeIntervalSince(cycle.start) else { continue }
 
+            // 保存或启用时已过去的步骤不补；本轮尚未到的步骤照常提醒。
             let occurrences = occurrences(for: entry, start: cycle.start, end: cycle.end)
+                .filter { $0.scheduledAt > entry.startsAfter }
             let due = occurrences.filter { $0.scheduledAt <= date }
             guard let latest = due.last else { continue }
             let watermark = deliveries[key]?.cycles.first(where: { $0.cycleStart == cycle.start })?.lastDeliveredAt ?? .distantPast
@@ -429,9 +431,10 @@ final class ReminderChainScheduler: ObservableObject {
             if let main = chain.nextMainDate(after: max(date, entry.startsAfter), calendar: calendar) {
                 next = min(next ?? main, main)
             }
-            if let cycle = chain.cycle(containing: date, calendar: calendar), cycle.start > entry.startsAfter,
+            if let cycle = chain.cycle(containing: date, calendar: calendar),
                TimeInterval(chain.totalIntervalMinutes) * 60 < cycle.end.timeIntervalSince(cycle.start),
-               let step = occurrences(for: entry, start: cycle.start, end: cycle.end).first(where: { $0.scheduledAt > date }) {
+               let step = occurrences(for: entry, start: cycle.start, end: cycle.end)
+                .first(where: { $0.scheduledAt > max(date, entry.startsAfter) }) {
                 next = min(next ?? step.scheduledAt, step.scheduledAt)
             }
         }

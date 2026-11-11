@@ -80,8 +80,10 @@ struct LocalizationTests {
         #expect(String(format: remaining, 2, 30) == "2 min 30 sec left")
         let resume = try englishBundle().localizedString(forKey: "%@ 继续", value: nil, table: nil)
         #expect(String(format: resume, "14:30") == "Resumes at 14:30")
-        let chain = try englishBundle().localizedString(forKey: "每天 %@ · %lld 条后续提醒", value: nil, table: nil)
-        #expect(String(format: chain, "08:00", 2) == "Daily at 08:00 · 2 follow-ups")
+        let more = try englishBundle().localizedString(forKey: "还有 %lld 条", value: nil, table: nil)
+        #expect(String(format: more, 2) == "2 more")
+        let nextDay = try englishBundle().localizedString(forKey: "次日 %@", value: nil, table: nil)
+        #expect(String(format: nextDay, "00:05") == "Next day 00:05")
     }
 
     @Test("圆环完整读法有英文版")

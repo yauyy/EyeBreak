@@ -133,6 +133,14 @@ struct ReminderChainViewTests {
             title: "第二件事", scheduledAt: start.addingTimeInterval(5 * 60), cycleStart: start, cycleEnd: start.addingTimeInterval(86400))]
         try await capture(ReminderChainPanelView(presentation: presentation, acknowledge: { _ in }), name: "routine-panel",
             dark: dark, size: ReminderChainPanelController.panelSize)
+        // 最紧凑的情况：两行长标题、所属计划副标题，并且还有积压。
+        let crowded = ReminderChainPanelPresentation()
+        crowded.presentedAt = start.addingTimeInterval(5 * 60)
+        crowded.pending = [presentation.pending[0], ReminderChainOccurrence(id: "crowded", chainID: UUID(), chainTitle: "晚间安排",
+            title: "把明天要带的药和水杯都放进包里再出门", scheduledAt: start.addingTimeInterval(5 * 60), cycleStart: start,
+            cycleEnd: start.addingTimeInterval(86400))]
+        try await capture(ReminderChainPanelView(presentation: crowded, acknowledge: { _ in }), name: "routine-panel-crowded",
+            dark: dark, size: ReminderChainPanelController.panelSize)
     }
 
     private func editorContent(_ chain: ReminderChain) -> some View {

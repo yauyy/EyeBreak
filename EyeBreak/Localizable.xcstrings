@@ -101,32 +101,12 @@
         }
       }
     },
-    "下一轮：%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Next cycle: %@"
-          }
-        }
-      }
-    },
     "与上一步间隔的分钟数": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Minutes after the previous step"
-          }
-        }
-      }
-    },
-    "例如：08:00 第一件事 → 5 分钟后第二件事 → 再过 10 分钟第三件事": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "For example: first task at 08:00 → second task 5 minutes later → third task another 10 minutes later"
           }
         }
       }
@@ -151,16 +131,6 @@
         }
       }
     },
-    "分钟数": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Minutes"
-          }
-        }
-      }
-    },
     "删除": {
       "localizations": {
         "en": {
@@ -181,72 +151,12 @@
         }
       }
     },
-    "删除这组连环提醒？": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete this routine?"
-          }
-        }
-      }
-    },
-    "后续提醒": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Follow-up reminders"
-          }
-        }
-      }
-    },
     "后续提醒内容": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Follow-up reminder"
-          }
-        }
-      }
-    },
-    "后续间隔之和必须小于下一轮首次提醒的间隔；相等也不允许。跨到次日可以，但不能进入下一轮。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All intervals combined must end strictly before the next first reminder. Crossing midnight is allowed, but overlapping the next cycle is not."
-          }
-        }
-      }
-    },
-    "在上一步": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "After the previous step"
-          }
-        }
-      }
-    },
-    "已错过计划时间，请根据实际情况处理。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The scheduled time has passed. Decide what to do based on your situation."
-          }
-        }
-      }
-    },
-    "待确认 %lld 条": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld pending"
           }
         }
       }
@@ -271,42 +181,12 @@
         }
       }
     },
-    "每一步填写与上一步的间隔，时间从首次提醒累计；点击“知道了”不会推迟后续提醒。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enter the interval after the previous step. All times are anchored to the first reminder; choosing “Got it” does not delay later reminders."
-          }
-        }
-      }
-    },
     "每一步的间隔都需要填写正整数分钟。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Enter a positive whole number of minutes for every interval."
-          }
-        }
-      }
-    },
-    "每天 %@ · %lld 条后续提醒": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daily at %1$@ · %2$lld follow-ups"
-          }
-        }
-      }
-    },
-    "每天首次提醒": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daily first reminder"
           }
         }
       }
@@ -331,36 +211,6 @@
         }
       }
     },
-    "编辑连环提醒": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit routine"
-          }
-        }
-      }
-    },
-    "计划时间：%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scheduled: %@"
-          }
-        }
-      }
-    },
-    "设定每天的首次时间，再添加间隔提醒。吃药、做饭或其他事情，都可以安排成一串。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set a daily first time, then add reminders at intervals for medication, cooking, or any sequence of tasks."
-          }
-        }
-      }
-    },
     "还没有连环提醒": {
       "localizations": {
         "en": {
@@ -371,52 +221,12 @@
         }
       }
     },
-    "这组尚未触发和待确认的提醒也会一并取消。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Upcoming and pending reminders for this routine will also be canceled."
-          }
-        }
-      }
-    },
-    "连环提醒独立于护眼计时，不受工作时段或暂停影响。请保持 EyeBreak 运行；睡眠或退出期间无法准时提醒，恢复后只补本轮最近的一条。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Routines run independently of the eye-break timer, work hours, and pauses. Keep EyeBreak running. It cannot alert while asleep or closed; on return, only the latest due reminder in the current cycle is shown."
-          }
-        }
-      }
-    },
-    "预计：%@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Expected: %@"
-          }
-        }
-      }
-    },
     "首次提醒内容": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "First reminder"
-          }
-        }
-      }
-    },
-    "首次时间是整组提醒的起点。保存或重新启用后，从下一次首次提醒开始。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The first time anchors the entire routine. Saving or re-enabling starts at the next first reminder."
           }
         }
       }
@@ -2609,6 +2419,96 @@
           "stringUnit": {
             "state": "translated",
             "value": "Allow it in System Settings"
+          }
+        }
+      }
+    },
+    "删除「%@」？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete “%@”?"
+          }
+        }
+      }
+    },
+    "次日 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next day %@"
+          }
+        }
+      }
+    },
+    "编辑提醒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit routine"
+          }
+        }
+      }
+    },
+    "还有 %lld 条": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld more"
+          }
+        }
+      }
+    },
+    "之后": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then"
+          }
+        }
+      }
+    },
+    "提醒内容，比如：点眼药水": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reminder, e.g. Eye drops"
+          }
+        }
+      }
+    },
+    "每天": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily at"
+          }
+        }
+      }
+    },
+    "比如 8:00 点眼药水，5 分钟后再点一次": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. eye drops at 8:00, then again 5 minutes later"
+          }
+        }
+      }
+    },
+    "原定 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Due %@"
           }
         }
       }

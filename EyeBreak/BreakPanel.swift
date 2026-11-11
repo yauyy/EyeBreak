@@ -440,7 +440,7 @@ private struct CelebrationContent: View {
 }
 
 /// 与图标呼应的白色波点底纹
-private struct PolkaDots: View {
+struct PolkaDots: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {

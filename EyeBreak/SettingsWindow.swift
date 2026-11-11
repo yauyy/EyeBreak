@@ -539,7 +539,7 @@ private struct RestExerciseSettings: View {
     }
 }
 
-private extension View {
+extension View {
     func settingsCard() -> some View {
         padding(Theme.Spacing.card)
             .frame(maxWidth: .infinity, alignment: .leading)

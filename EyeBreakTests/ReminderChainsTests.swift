@@ -112,22 +112,26 @@ struct ReminderChainsTests {
         #expect(ReminderChain(title: "主提醒", steps: [ReminderChainStep(title: " ")]).validationMessage() != nil)
     }
 
-    @Test("新增在主时间之后只从下一轮开始，不单独触发子提醒")
-    func creationStartsNextCycle() throws {
+    @Test("主时间之后新增，不补已过的主提醒，本轮剩余步骤照常提醒")
+    func creationKeepsRemainingSteps() throws {
         let context = ChainTestContext()
         defer { context.clean() }
         context.now = context.date(hour: 8, minute: 2)
         try context.saveExample()
         context.scheduler.start()
+        #expect(context.scheduler.pending.isEmpty)
+        context.now = context.date(hour: 8, minute: 5)
+        context.scheduler.tick()
+        #expect(context.scheduler.pending.map(\.title) == ["第二步"])
         context.now = context.date(hour: 8, minute: 15)
         context.scheduler.tick()
-        #expect(context.scheduler.pending.isEmpty)
+        #expect(context.scheduler.pending.map(\.title) == ["第三步"])
         context.now = context.date(day: 9, hour: 8)
         context.scheduler.tick()
         #expect(context.scheduler.pending.map(\.title) == ["第一步"])
     }
 
-    @Test("恰好主时间保存也从下一轮开始")
+    @Test("恰好主时间保存时不补当前主提醒")
     func exactMainCreationStartsTomorrow() throws {
         let context = ChainTestContext()
         defer { context.clean() }
@@ -138,7 +142,7 @@ struct ReminderChainsTests {
         #expect(context.scheduler.pending.isEmpty)
     }
 
-    @Test("编辑、禁用与删除同步撤销该链消息，重新启用从下一主时间开始")
+    @Test("编辑、禁用与删除同步撤销该链消息，修改或重新启用后本轮剩余步骤继续")
     func configurationChangesCancelCurrentCycle() throws {
         let context = ChainTestContext()
         defer { context.clean() }
@@ -151,7 +155,7 @@ struct ReminderChainsTests {
         #expect(context.scheduler.pending.isEmpty)
         context.now = context.date(hour: 8, minute: 15)
         context.scheduler.tick()
-        #expect(context.scheduler.pending.isEmpty)
+        #expect(context.scheduler.pending.map(\.title) == ["第三步"])
         context.now = context.date(day: 9, hour: 8)
         context.scheduler.tick()
         #expect(context.scheduler.pending.map(\.title) == ["修改后"])
@@ -159,9 +163,10 @@ struct ReminderChainsTests {
         #expect(context.scheduler.pending.isEmpty)
         context.now = context.date(day: 9, hour: 8, minute: 1)
         try context.store.setEnabled(true, id: chain.id)
+        #expect(context.scheduler.pending.isEmpty)
         context.now = context.date(day: 9, hour: 8, minute: 15)
         context.scheduler.tick()
-        #expect(context.scheduler.pending.isEmpty)
+        #expect(context.scheduler.pending.map(\.title) == ["第三步"])
         context.now = context.date(day: 10, hour: 8)
         context.scheduler.tick()
         #expect(context.scheduler.pending.count == 1)
@@ -345,7 +350,7 @@ struct ReminderChainsTests {
         #expect(context.scheduler.pending.map(\.title) == ["主提醒"])
     }
 
-    @Test("夏令时回拨重复小时中创建或启用，从次日主时间开始", arguments: [false, true])
+    @Test("夏令时回拨重复小时中创建或启用，不补已过的主提醒", arguments: [false, true])
     func repeatedHourStartsFollowingDay(reenable: Bool) throws {
         let context = ChainTestContext(timeZone: "America/New_York")
         defer { context.clean() }
