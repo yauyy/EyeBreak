@@ -3,28 +3,26 @@
     <channel>
         <title>EyeBreak</title>
         <item>
-            <title>1.7</title>
-            <pubDate>Sun, 08 Nov 2026 17:08:00 +0800</pubDate>
+            <title>1.7.1</title>
+            <pubDate>Wed, 11 Nov 2026 20:17:54 +0800</pubDate>
             <link>https://github.com/yauyy/EyeBreak</link>
-            <sparkle:version>66</sparkle:version>
-            <sparkle:shortVersionString>1.7</sparkle:shortVersionString>
+            <sparkle:version>69</sparkle:version>
+            <sparkle:shortVersionString>1.7.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[## 新功能
+            <description sparkle:format="markdown"><![CDATA[## 修复
 
-- 连环提醒：在「设置 → 连环提醒」设定每天的首次时间，再连续添加间隔提醒，适合日常事项、用药安排、烹饪等
-- 例如每天 08:00 提醒第一件事，5 分钟后提醒第二件，再过 10 分钟提醒第三件，实际为 08:00、08:05、08:15；点击「知道了」不会推迟后续提醒
-- 支持多组计划、时间预览、编辑、启停和删除；新建默认 08:00，保存修改或重新启用后，从下一次首次提醒开始
-- 后续提醒可以跨午夜，但必须严格早于下一轮首次提醒；保存和运行时均校验累计间隔，并处理夏令时与系统时间变化
+- 连环提醒：主时间刚过时新建、修改或重新开启，当天剩余的提醒不再被整轮跳过；已过的时间不补，还没到的照常弹出
 
-## 使用说明
+## 优化
 
-连环提醒独立于护眼计时，在屏幕左上角常驻显示，并使用已选的提示音。请保持 EyeBreak 运行；电脑睡眠或退出 App 期间无法准时提醒，恢复后只显示本轮最近一条到期事项及原计划时间，不连续补发历史提醒。
+- 连环提醒弹窗改为与休息提醒一致的样式：番茄仔、提醒内容、时间和「知道了」；错过时显示原定时间，多条积压时显示「还有 N 条」，可按 Esc 关闭
+- 设置页每组提醒直接列出每一步的时间和内容，编辑页每一步一行，去掉多余说明
 
 ## 升级
 
-已安装 1.2 及以上版本的用户可从菜单中「检查更新」安装。升级不会自动创建提醒计划，可按需在设置中添加。
+在菜单中「检查更新」即可安装，已有的提醒计划会保留。
 ]]></description>
-            <enclosure url="https://raw.githubusercontent.com/yauyy/EyeBreak/refs/heads/feature/ymy/update-channel/updates/EyeBreak-1.7.dmg" length="3666943" type="application/octet-stream" sparkle:edSignature="4Ua+VSzlety2GYrhRLUHoL2m7X1675qtsG3RXiNs/1Fr94SZdFif/gWVoMg8W1LOwewchNsn40y8LLEjWkHOAQ=="/>
+            <enclosure url="https://raw.githubusercontent.com/yauyy/EyeBreak/refs/heads/feature/ymy/update-channel/updates/EyeBreak-1.7.1.dmg" length="3690484" type="application/octet-stream" sparkle:edSignature="83Zu6Rim4aZovL04lKJ8GDFpG3SH533KdAfDlOnh/sk3wBsRQkIYN3wwhdnxDmp2WW0dei43wLy3GRocWxxWDA=="/>
         </item>
     </channel>
 </rss>
